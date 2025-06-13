@@ -1,0 +1,32 @@
+[
+    {
+      "email": "admin",
+      "password": "admin123",
+      "role": "Administrator",
+      "id": "ebd0"
+    },
+    {
+      "email": "dr.house",
+      "password": "diagnostic",
+      "role": "Doctor",
+      "id": "4783"
+    },
+    {
+      "email": "dr.strange",
+      "password": "sorcery42",
+      "role": "Doctor",
+      "id": "8068"
+    },
+    {
+      "email": "efe",
+      "password": "patient01",
+      "role": "Patient",
+      "id": "8ed4"
+    },
+    {
+      "email": "nathan",
+      "password": "patient02",
+      "role": "Patient",
+      "id": "c40d"
+    }
+  ]
