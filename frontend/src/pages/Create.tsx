@@ -68,9 +68,10 @@ const CreatePatient = () => {
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [isPending, setIsPending] = useState(false);
   const navigate = useNavigate();
+  const token = localStorage.getItem('token');
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); 
 
     const formData = new FormData();
     formData.append("nom", nom);
@@ -88,9 +89,15 @@ const CreatePatient = () => {
 
     fetch("http://localhost:5000/api/patients", {
       method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
       body: formData,
     })
       .then(res => {
+        for (const [key, value] of formData.entries()) {
+          console.log(key, value);
+        }
         if (!res.ok) throw new Error("Erreur lors de la création du patient.");
         return res.json();
       })

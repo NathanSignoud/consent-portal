@@ -49,10 +49,10 @@ const Divided = () => {
     <div className="max-w-4xl mx-auto p-6 mt-10 bg-white rounded shadow space-y-6">
       <h1 className="text-2xl font-bold text-blue-700 text-center">Analyse du PDF</h1>
       {error && <p className="text-red-500 text-center">{error}</p>}
-
+ 
       {sections.map((section, idx) => (
         <div key={idx} className="bg-gray-100 rounded p-4 shadow">
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">{section.title}</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2 ">{section.title}</h2>
           <p className="text-gray-700 whitespace-pre-line">{section.body}</p>
         </div>
       ))}

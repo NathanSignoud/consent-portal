@@ -7,7 +7,7 @@ import os
 app = Flask(__name__)
 
 # LLM simple — remplace par ton vrai modèle si nécessaire
-llm = pipeline("text2text-generation", model="google/flan-t5-large")
+# llm = pipeline("text2text-generation", model="google/flan-t5-large")
 
 @app.route('/summarize', methods=['GET'])
 def summarize():

@@ -7,7 +7,9 @@ import mongoose from 'mongoose';
 
 const router = express.Router();
 
-// 📦 Configuration Multer pour upload PDF
+
+
+// Configuration Multer pour upload PDF
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, 'uploads/'),
   filename: (_, file, cb) => {
@@ -18,7 +20,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// 📄 GET /api/patients
+// GET /api/patients
 router.get('/', async (_: Request, res: Response) => {
   try {
     const patients = await Patient.find();
@@ -28,7 +30,7 @@ router.get('/', async (_: Request, res: Response) => {
   }
 });
 
-// 📄 GET /api/patients/:id
+// GET /api/patients/:id
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const patient = await Patient.findById(req.params.id);
@@ -53,9 +55,23 @@ router.get('/:patientId/pdf/:pdfId', async (req: Request, res: Response) => {
 
 // 📄 POST /api/patients
 router.post('/', upload.array('pdfs'), async (req: Request, res: Response) => {
+
+  console.log("🩺 Patient POST reçu", req.body);
+  console.log("📎 Fichiers reçus :", req.files);
+  
   try {
-    const { name, age } = req.body;
-    const pathologies = JSON.parse(req.body.pathologies || '[]');
+    const {
+      nom,
+      prenom,
+      dateNaissance,
+      datePriseEnCharge,
+      numeroContact,
+      adresse,
+      codePostal,
+      pathologies,
+      allergies,
+      medication
+    } = req.body;
 
     const pdfs = (req.files as Express.Multer.File[]).map((file) => ({
       _id: new mongoose.Types.ObjectId(),
@@ -63,7 +79,19 @@ router.post('/', upload.array('pdfs'), async (req: Request, res: Response) => {
       path: file.filename,
     }));
 
-    const patient = new Patient({ name, age, pathologies, pdfs });
+    const patient = new Patient({
+      nom,
+      prenom,
+      dateNaissance,
+      datePriseEnCharge,
+      numeroContact,
+      adresse,
+      codePostal,
+      pathologies: JSON.parse(pathologies || '[]'),
+      allergies: JSON.parse(allergies || '[]'),
+      medication: JSON.parse(medication || '[]'),
+      pdfs
+    });
     await patient.save();
 
     res.status(201).json(patient);

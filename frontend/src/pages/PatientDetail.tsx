@@ -46,6 +46,10 @@ const PatientDetail = () => {
   const handleDelete = () => {
     fetch(`http://localhost:5000/api/patients/${id}`, {
       method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     }).then(() => navigate('/'));
   };
 
