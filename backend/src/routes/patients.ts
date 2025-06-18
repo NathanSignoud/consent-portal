@@ -7,8 +7,6 @@ import mongoose from 'mongoose';
 
 const router = express.Router();
 
-
-
 // Configuration Multer pour upload PDF
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, 'uploads/'),
@@ -41,24 +39,23 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// 📄 GET /api/patients/:patientId/pdf/:pdfId
+// GET /api/patients/:patientId/pdf/:pdfId
 router.get('/:patientId/pdf/:pdfId', async (req: Request, res: Response) => {
   try {
     const patient = await Patient.findById(req.params.patientId);
-    const pdf = patient?.pdfs?.find(p => p._id.toString() === req.params.pdfId);
+    const pdf = patient?.pdfs?.find(p => p._id?.toString() === req.params.pdfId);
     if (!pdf) return res.status(404).json({ message: 'PDF not found' });
-    res.json(pdf); // ou res.sendFile(...) si tu veux le fichier
+    res.json(pdf);
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// 📄 POST /api/patients
+// POST /api/patients
 router.post('/', upload.array('pdfs'), async (req: Request, res: Response) => {
+  console.log("Patient POST reçu", req.body);
+  console.log("Fichiers reçus :", req.files);
 
-  console.log("🩺 Patient POST reçu", req.body);
-  console.log("📎 Fichiers reçus :", req.files);
-  
   try {
     const {
       nom,
@@ -92,8 +89,8 @@ router.post('/', upload.array('pdfs'), async (req: Request, res: Response) => {
       medication: JSON.parse(medication || '[]'),
       pdfs
     });
-    await patient.save();
 
+    await patient.save();
     res.status(201).json(patient);
   } catch (error: any) {
     console.error('Erreur lors de la création du patient :', error);
@@ -101,7 +98,7 @@ router.post('/', upload.array('pdfs'), async (req: Request, res: Response) => {
   }
 });
 
-// 📄 DELETE /api/patients/:id
+// DELETE /api/patients/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const patient = await Patient.findByIdAndDelete(req.params.id);
@@ -109,11 +106,13 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     // Supprimer les fichiers du disque
     for (const file of patient.pdfs || []) {
-      const filePath = path.join('uploads', file.path);
-      fs.unlink(filePath, (err) => {
-        if (err) console.warn(`Erreur suppression : ${filePath}`, err);
-        else console.log(`Supprimé : ${filePath}`);
-      });
+      if (file.path) {
+        const filePath = path.join('uploads', file.path);
+        fs.unlink(filePath, (err) => {
+          if (err) console.warn(`Erreur suppression : ${filePath}`, err);
+          else console.log(`Supprimé : ${filePath}`);
+        });
+      }
     }
 
     res.status(200).json({ message: 'Patient and PDFs deleted successfully' });
