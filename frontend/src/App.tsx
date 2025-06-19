@@ -8,6 +8,7 @@ import HubPatient from './pages/HubPatient';
 import Create from './pages/Create';
 import Login from './pages/Login';
 import PatientDetail from './pages/PatientDetail';
+import Patient2Detail from './pages/Patient2Detail';
 import NotFound from './pages/NotFound';
 import Register from './pages/Register';
 import PdfViewer from './pages/PdfViewer';
@@ -97,7 +98,9 @@ function App() {
               path="/login"
               element={<Login setLogged={setLogged} setCurrentUser={setCurrentUser} />}
             />
+
             <Route path="/patient/:id" element={<PatientDetail />} />
+            <Route path="/patient2/:id" element={<Patient2Detail />} />
             <Route path="/patient/:id/pdf/:pdfId" element={<PdfViewer />} />
             <Route path="/patient/:id/divide/:pdfId" element={<Divided />} />
             <Route path="/register" element={<Register />} />

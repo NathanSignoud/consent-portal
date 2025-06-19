@@ -43,7 +43,7 @@ const Register = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
-            type="email"
+            type="text"
             placeholder="Adresse email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -65,7 +65,7 @@ const Register = () => {
           >
             <option value="Patient">Patient</option>
             <option value="Doctor">Médecin</option>
-            <option value="Administrator">Administrateur</option>
+            <option value="Administrator">Aide Soignant</option>
           </select>
           <button
             type="submit"

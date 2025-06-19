@@ -19,7 +19,7 @@ const NavBar: React.FC<NavBarProps> = ({ logged, setLogged }) => {
     <nav className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex justify-between items-center">
       <div className="flex items-center space-x-4">
         <img src={logo} alt="Logo" className="h-10 w-auto rounded-full shadow-md" />
-        <span className="text-xl font-semibold text-gray-800">Doctor Portal</span>
+        <span className="text-xl font-semibold text-gray-800">Portail Aide Soignant</span>
       </div>
 
       <div className="flex space-x-6 items-center text-sm font-medium text-gray-700">

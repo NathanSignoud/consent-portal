@@ -6,6 +6,7 @@ import path from 'path';
 
 import authRoutes from './routes/auth';
 import patientRoutes from './routes/patients';
+import Patient2Routes from './routes/patient2';
 
 import { authMiddleware } from './middlewares/auth';
 import { errorHandler } from './middlewares/errorHandler';
@@ -28,7 +29,7 @@ app.use('/api/auth', authRoutes);
  
 // Routes protégées (auth middleware)
 app.use('/api/patients', authMiddleware, patientRoutes);
-
+app.use('/api/patient2',authMiddleware, Patient2Routes);
 // Middleware global de gestion des erreurs
 app.use(errorHandler);
 
