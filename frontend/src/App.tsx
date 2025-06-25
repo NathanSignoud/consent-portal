@@ -13,6 +13,7 @@ import NotFound from './pages/NotFound';
 import Register from './pages/Register';
 import PdfViewer from './pages/PdfViewer';
 import Divided from './pages/Divided';
+import CalendarPage from './pages/Calendar';
 
 interface User {
   role: 'Administrator' | 'Doctor' | 'Patient' | string;
@@ -93,6 +94,18 @@ function App() {
               }
             />
 
+            <Route
+              path="/calendar"
+              element={
+                <PrivateRoute
+                  logged={logged}
+                  currentUser={currentUser}
+                  allowedRoles={['Administrator', 'Doctor']}
+                >
+                  <CalendarPage />
+                </PrivateRoute>
+              }
+            />
             <Route path="/create" element={<Create />} />
             <Route
               path="/login"
@@ -102,7 +115,7 @@ function App() {
             <Route path="/patient/:id" element={<PatientDetail />} />
             <Route path="/patient2/:id" element={<Patient2Detail />} />
             <Route path="/patient/:id/pdf/:pdfId" element={<PdfViewer />} />
-            <Route path="/patient/:id/divide/:pdfId" element={<Divided />} />
+            <Route path="/patient/:id/divide/:pdfPath" element={<Divided />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -23,6 +23,7 @@ const NavBar: React.FC<NavBarProps> = ({ logged, setLogged }) => {
       </div>
 
       <div className="flex space-x-6 items-center text-sm font-medium text-gray-700">
+        <Link to="/calendar" className="hover:underline">Planning</Link>
         <Link to="/" className="hover:text-blue-600 transition">Accueil</Link>
         <Link to="/create" className="hover:text-blue-600 transition">Nouveau patient</Link>
         {!logged && (

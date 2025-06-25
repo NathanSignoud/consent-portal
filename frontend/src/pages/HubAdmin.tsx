@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import useFetch from "../hooks/useFetch";
 import Patient2List from "../components/Patient2List";
 import SearchBar from "../components/SearchBar";
-import { Patient2 } from "../types/patients2";
+import { Patient2 } from "../types/patient2";
 import React from "react";
 
 const HubAdmin = () => {
