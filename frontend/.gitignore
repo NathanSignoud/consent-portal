@@ -7,19 +7,46 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
+# Node modules
+node_modules/
+**/node_modules/
+
+# Dist folders
+dist/
+dist-ssr/
+
+# Local env files
+*.local
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Python (si Flask utilisé)
+__pycache__/
+*.py[cod]
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# System files
+Thumbs.db
+ehthumbs.db
+
+# Temp folders
+temp/
+tmp/

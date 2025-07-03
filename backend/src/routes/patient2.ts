@@ -8,6 +8,40 @@ import fs from 'fs';
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
+// Consentements par défaut
+const defaultConsents = [
+  {
+    sectionTitle: "Consentement à l'intervention",
+    answers: ["", "", ""],
+    checkboxes: {
+      understood: false,
+      surgeryConsent: false,
+      otherConsent: false
+    },
+    validatedAt: null
+  },
+  {
+    sectionTitle: "Consentement à l’anesthésie",
+    answers: ["", "", ""],
+    checkboxes: {
+      understood: false,
+      surgeryConsent: false,
+      otherConsent: false
+    },
+    validatedAt: null
+  },
+  {
+    sectionTitle: "Consentement au partage des données",
+    answers: ["", "", ""],
+    checkboxes: {
+      understood: false,
+      surgeryConsent: false,
+      otherConsent: false
+    },
+    validatedAt: null
+  }
+];
+
 // GET all patients
 router.get('/', async (_: Request, res: Response) => {
   try {
@@ -45,7 +79,8 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
       dateSortiePrevue,
       hopitalProvenance,
       actions,
-      pathologies
+      pathologies,
+      consents
     } = req.body;
 
     const formattedActions = Array.isArray(actions)
@@ -70,6 +105,7 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
       hopitalProvenance,
       actions: formattedActions,
       pathologies: pathologies?.split('-').map((p: string) => p.trim()).filter((p: string) => p),
+      consents: Array.isArray(consents) ? consents : defaultConsents
     });
 
     await patient.save();
@@ -129,7 +165,8 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
         dateSortiePrevue: row["Date de sortie prévue"] ? new Date(row["Date de sortie prévue"]) : null,
         hopitalProvenance: row["Hôpital de provenance"] || null,
         actions,
-        pathologies
+        pathologies,
+        consents: defaultConsents
       });
 
       await patient.save();
@@ -145,18 +182,18 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
   }
 });
 
-// PUT update actions of patient
+// PUT update actions and consents
 router.put('/:id', async (req: Request, res: Response) => {
   try {
-    const { actions } = req.body;
+    const { actions, consents } = req.body;
 
-    if (!Array.isArray(actions) || !actions.every(a => a.label && typeof a.label === 'string')) {
-      return res.status(400).json({ message: 'Format des actions invalide' });
-    }
+    const updateFields: any = {};
+    if (Array.isArray(actions)) updateFields.actions = actions;
+    if (Array.isArray(consents)) updateFields.consents = consents;
 
     const updatedPatient = await Patient2.findByIdAndUpdate(
       req.params.id,
-      { actions },
+      updateFields,
       { new: true }
     );
 

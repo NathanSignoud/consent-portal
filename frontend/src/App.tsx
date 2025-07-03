@@ -14,6 +14,7 @@ import Register from './pages/Register';
 import PdfViewer from './pages/PdfViewer';
 import Divided from './pages/Divided';
 import CalendarPage from './pages/Calendar';
+import SectionDetail from './pages/SectionDetail';
 
 interface User {
   role: 'Administrator' | 'Doctor' | 'Patient' | string;
@@ -116,6 +117,7 @@ function App() {
             <Route path="/patient2/:id" element={<Patient2Detail />} />
             <Route path="/patient/:id/pdf/:pdfId" element={<PdfViewer />} />
             <Route path="/patient/:id/divide/:pdfPath" element={<Divided />} />
+            <Route path="/section/:id" element={<SectionDetail />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -6,6 +6,17 @@ const ActionSchema = new mongoose.Schema({
   date: { type: Date, default: null }
 });
 
+const ConsentSchema = new mongoose.Schema({
+  sectionTitle: { type: String, required: true },
+  answers: { type: [String], default: [] },
+  checkboxes: {
+    understood: { type: Boolean, default: false },
+    surgeryConsent: { type: Boolean, default: false },
+    otherConsent: { type: Boolean, default: false }
+  },
+  validatedAt: { type: Date, default: Date.now }
+});
+
 const Patient2Schema = new mongoose.Schema({
   nom: { type: String, required: true },
   prenom: { type: String },
@@ -21,6 +32,7 @@ const Patient2Schema = new mongoose.Schema({
   hopitalProvenance: { type: String },
   pathologies: { type: [String], default: [] },
   actions: { type: [ActionSchema], default: [] },
+  consents: { type: [ConsentSchema], default: [] }
 }, { timestamps: true });
 
 export default mongoose.model('Patient2', Patient2Schema);

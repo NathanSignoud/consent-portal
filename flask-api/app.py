@@ -1,84 +1,80 @@
-from flask import Flask, request, jsonify
-import fitz 
-from transformers import pipeline
-import re
 import os
+import fitz  # PyMuPDF
+import re
+import json
+from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
-# LLM simple — remplace par ton vrai modèle si nécessaire
-# llm = pipeline("text2text-generation", model="google/flan-t5-large")
+def extract_text_from_pdf(path):
+    doc = fitz.open(path)
+    return "\n".join(page.get_text() for page in doc)
 
-@app.route('/summarize', methods=['GET'])
-def summarize():
-    patient_id = request.args.get('patientId')
-    pdf_name = request.args.get('pdfName')
+def split_by_numbered_sections(text):
+    # Regex : ligne qui commence par chiffre + point + espace + titre
+    pattern = r'(^|\n)(\d{1,2})\.\s+([^\n]+)'
+    matches = list(re.finditer(pattern, text))
 
-    if not patient_id or not pdf_name:
-        return jsonify({'error': 'Missing patientId or pdfName'}), 400
+    sections = []
 
-    summary = f"Résumé généré dynamiquement pour {pdf_name} et patient {patient_id}."
-    return jsonify({'summary': summary})
+    for i, match in enumerate(matches):
+        title = match.group(3).strip()
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[start:end].strip()
+        sections.append({
+            "title": f"{match.group(2)}. {title}",
+            "body": body
+        })
 
-@app.route('/divide', methods=['GET'])
-def divide():
-    patient_id = request.args.get('patientId')
-    pdf_name = request.args.get('pdfName')
+    return sections
 
-    if not patient_id or not pdf_name:
-        return jsonify({'error': 'Missing patientId or pdfName'}), 400
+@app.route('/flask/divide', methods=['POST'])
+def divide_pdf():
+    if 'file' not in request.files:
+        return jsonify({"error": "Aucun fichier PDF n’a été fourni."}), 400
+
+    print("📥 Appel Flask reçu")
+
+    pdf_file = request.files['file']
+    filename = pdf_file.filename or "uploaded.pdf"
+    temp_dir = "temp"
+    os.makedirs(temp_dir, exist_ok=True)
+    pdf_path = os.path.join(temp_dir, filename)
+    pdf_file.save(pdf_path)
+
+    print("📄 Fichier sauvegardé :", pdf_path)
 
     try:
-        
-    #     pdf_path = os.path.join("uploads", pdf_name)
-    #     if not os.path.exists(pdf_path):
-    #         return jsonify({'error': f'Fichier {pdf_name} introuvable'}), 404
+        raw_text = extract_text_from_pdf(pdf_path)
+        print("🧠 Texte extrait, longueur :", len(raw_text))
 
-    #     doc = fitz.open(pdf_path)
-    #     full_text = "\n".join([page.get_text() for page in doc])
+        if not raw_text.strip():
+            print("⚠️ Le PDF est vide ou illisible")
+            return jsonify({"error": "Le PDF est vide ou illisible."}), 400
 
-    #     prompt = (
-    #         "Divise ce texte médical en sections avec des titres clairs.\n"
-    #         "Utilise le format suivant pour chaque section :\n\n"
-    #         "### Titre de la section\nContenu de la section...\n\n"
-    #         f"{full_text}"
-    #     )
+        print("🔍 Découpage en cours...")
+        sections_json = split_by_numbered_sections(raw_text)
+        print("📝 Sections générées, nombre :", len(sections_json))
 
-    #     result = llm(prompt, max_length=2048, do_sample=False)[0]['generated_text']
-
-    #     # Regex pour extraire les sections avec titre + contenu
-    #     pattern = r"###\s*(.+?)\n(.*?)(?=\n###|\Z)"
-    #     matches = re.findall(pattern, result, re.DOTALL)
-    
-        # structured = [
-        #     {"title": title.strip(), "body": body.strip()}
-        #     for title, body in matches
-        # ]
-        
-        fake_sections = [
-        {
-            "title": "Historique Médical",
-            "body": "Le patient présente des antécédents d'hypertension artérielle depuis 2015, ainsi qu'une chirurgie du genou droit en 2018. Aucun antécédent familial majeur connu."
-        },
-        {
-            "title": "Symptômes Actuels",
-            "body": "Le patient signale une douleur thoracique intermittente, accompagnée de fatigue et de vertiges. Les symptômes ont commencé il y a environ deux semaines."
-        },
-        {
-            "title": "Examens Complémentaires",
-            "body": "Les analyses sanguines révèlent un taux élevé de cholestérol. L’ECG montre des signes d’ischémie myocardique. Une échographie cardiaque est prévue."
-        },
-        {
-            "title": "Traitement Recommandé",
-            "body": "Mise en place d’un traitement à base de bêta-bloquants, régime alimentaire adapté, et suivi cardiologique mensuel pendant 6 mois."
-        }
-    ]
-
-
-        return jsonify({'sections': fake_sections})
+        return jsonify({"sections": sections_json})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("🔥 Erreur lors du traitement complet :", str(e))
+        return jsonify({"error": f"Erreur lors du traitement : {str(e)}"}), 500
+
+@app.route('/flask/summarize', methods=['POST'])
+def section_summary():
+    data = request.get_json()
+    patient_id = data.get("patientId")
+    text = data.get("text")
+    print("✅ Reçu pour résumé :", patient_id, text[:100])
+    return jsonify({
+        "message": f"Résumé simulé pour patient {patient_id} - Longueur texte : {len(text)}"
+    })
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(port=5001, debug=True)

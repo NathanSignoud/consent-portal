@@ -12,7 +12,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': 'http://localhost:5000',     // backend Express
-      '/divide': 'http://localhost:5001'   // backend Flask
+      '/pdf': 'http://localhost:5000',     // Express sert les PDF 
+      '/flask': 'http://localhost:5001'
+         // backend Flask
     }
   },
   plugins: [
