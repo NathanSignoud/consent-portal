@@ -8,7 +8,6 @@ interface Section {
 
 const Divided = () => {
   const { id, pdfPath } = useParams<{ id: string; pdfPath: string }>();
-  const token = localStorage.getItem('token');
   const navigate = useNavigate();
   const [sections, setSections] = useState<Section[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -20,31 +19,14 @@ const Divided = () => {
       try {
         const decodedPath = decodeURIComponent(pdfPath);
         const fileName = decodedPath.split('/').pop();
-        const fileRes = await fetch(`/pdf/${fileName}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        if (!fileName) throw new Error("Nom de fichier invalide");
 
-        if (!fileRes.ok) throw new Error("Échec de la récupération du PDF");
-
-        const blob = await fileRes.blob();
-        const formData = new FormData();
-        formData.append("file", new File([blob], fileName || "document.pdf", { type: blob.type }));
-
-        const res = await fetch('/flask/divide', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
-        });
-
+        const res = await fetch(`/flask/divide/${fileName}`);
         if (!res.ok) throw new Error("Erreur lors de la division du PDF");
 
         const data = await res.json();
-        const parsed = typeof data.sections === 'string' ? JSON.parse(data.sections) : data.sections;
-        setSections(parsed || []);
+        const parsed = Array.isArray(data.sections) ? data.sections : [];
+        setSections(parsed);
       } catch (err: any) {
         const message = err?.message || "Erreur inconnue";
         console.error("Erreur dans Divided:", message);
@@ -61,16 +43,16 @@ const Divided = () => {
       {error && <p className="text-red-500 text-center">{error}</p>}
 
       {sections.map((section, idx) => (
-      <div
-        key={idx}
-        className="bg-gray-100 rounded p-4 shadow cursor-pointer hover:bg-gray-200 transition"
-        onClick={() =>
-          navigate(`/section/${id}`, { state: { title: section.title, body: section.body } })
-        }
-      >
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">{section.title}</h2>
-      </div>
-    ))}
+        <div
+          key={idx}
+          className="bg-gray-100 rounded p-4 shadow cursor-pointer hover:bg-gray-200 transition"
+          onClick={() =>
+            navigate(`/section/${id}`, { state: { title: section.title, body: section.body } })
+          }
+        >
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">{section.title}</h2>
+        </div>
+      ))}
 
       <div className="text-center mt-8">
         <button

@@ -6,16 +6,14 @@ import { defineConfig } from "vite";
 import svgrPlugin from "vite-plugin-svgr";
 import path from 'path';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   server: {
     port: 5173,
     proxy: {
       '/api': 'http://localhost:5000',     // backend Express
       '/pdf': 'http://localhost:5000',     // Express sert les PDF 
-      '/flask': 'http://localhost:5001'
-         // backend Flask
-    }
+      '/flask': 'http://localhost:5001', // backend Flask
+    },
   },
   plugins: [
     react(),

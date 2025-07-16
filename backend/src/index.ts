@@ -8,6 +8,7 @@
   import patientRoutes from './routes/patients';
   import Patient2Routes from './routes/patient2';
   import consentRoutes from './routes/consent';
+  import calendarRoutes from './routes/calendar.routes';
 
   import { authMiddleware } from './middlewares/auth';
   import { errorHandler } from './middlewares/errorHandler';
@@ -27,6 +28,7 @@
 
   // Routes publiques
   app.use('/api/auth', authRoutes);
+  app.use('/api/calendar', calendarRoutes);
   
   // Routes protégées (auth middleware)
   app.use('/api/patients', authMiddleware, patientRoutes);

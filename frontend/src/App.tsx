@@ -103,7 +103,7 @@ function App() {
                   currentUser={currentUser}
                   allowedRoles={['Administrator', 'Doctor']}
                 >
-                  <CalendarPage />
+                  <CalendarPage currentUser={currentUser} />
                 </PrivateRoute>
               }
             />
