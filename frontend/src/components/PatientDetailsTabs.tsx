@@ -3,10 +3,12 @@ import PatientInfos from "@/components/patient2/PatientInfos";
 import PatientDocuments from "@/components/patient2/PatientDocuments";
 import PatientActions from "@/components/patient2/PatientActions";
 import { Patient2, Action } from "@/types/patient2";
+import { User, FileText, Activity, Info, Upload, CheckSquare } from "lucide-react";
 
 interface Props {
   patient: Patient2;
   filter: 'all' | 'todo' | 'done';
+  language: string;
   setFilter: (f: 'all' | 'todo' | 'done') => void;
   handleActionToggle: (index: number) => void;
 }
@@ -14,9 +16,14 @@ interface Props {
 const PatientDetailsTabs = ({
   patient,
   filter,
+  language,
   setFilter,
   handleActionToggle
+  
 }: Props) => {
+
+  console.log(`Patient Details Tabs - Patient ID: ${patient._id}, Language: ${language}`);
+  
   const calculateAge = (dateNaissance: string) => {
     const birth = new Date(dateNaissance);
     const now = new Date();
@@ -26,31 +33,131 @@ const PatientDetailsTabs = ({
     return age;
   };
 
+  // Calculer les statistiques pour les badges
+  const totalActions = patient.actions?.length || 0;
+  const completedActions = patient.actions?.filter(action => action.status === 'réalisé').length || 0;
+  const pendingActions = totalActions - completedActions;
+
   return (
-    <Tabs defaultValue="infos" className="w-full">
-      <TabsList className="mb-6">
-        <TabsTrigger value="infos">Informations</TabsTrigger>
-        <TabsTrigger value="documents">Documents</TabsTrigger>
-        <TabsTrigger value="actions">Actions</TabsTrigger>
-      </TabsList>
+    <div className="w-full">
+      <Tabs defaultValue="infos" className="w-full">
+        
+        {/* Tabs Navigation modernisée */}
+        <div className="px-6 pt-6 pb-4 border-b border-gray-200/50">
+          <TabsList className="grid w-full grid-cols-3 bg-gray-100/80 backdrop-blur-sm border border-gray-200/50 rounded-xl p-1 shadow-sm">
+            <TabsTrigger 
+              value="infos" 
+              className="relative flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 text-gray-600 hover:text-gray-900 hover:bg-white/70 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-md"
+            >
+              <User className="w-4 h-4" />
+              <span>Informations</span>
+            </TabsTrigger>
+            
+            <TabsTrigger 
+              value="documents" 
+              className="relative flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 text-gray-600 hover:text-gray-900 hover:bg-white/70 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-md"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Documents</span>
+            </TabsTrigger>
+            
+            <TabsTrigger 
+              value="actions" 
+              className="relative flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 text-gray-600 hover:text-gray-900 hover:bg-white/70 data-[state=active]:bg-white data-[state=active]:text-green-600 data-[state=active]:shadow-md"
+            >
+              <Activity className="w-4 h-4" />
+              <span>Actions</span>
+              {totalActions > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                  {completedActions}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      <TabsContent value="infos">
-        <PatientInfos patient={patient} calculateAge={calculateAge} />
-      </TabsContent>
+        {/* Content Areas avec animations */}
+        <div className="min-h-[500px]">
+          <TabsContent 
+            value="infos" 
+            className="mt-0 animate-in fade-in-50 slide-in-from-bottom-4 duration-300"
+          >
+            <div className="p-6">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Info className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Informations patient</h3>
+                  <p className="text-sm text-gray-600">Données personnelles et médicales</p>
+                </div>
+              </div>
+              <PatientInfos patient={patient} calculateAge={calculateAge} />
+            </div>
+          </TabsContent>
 
-      <TabsContent value="documents">
-        <PatientDocuments patientId={patient._id} />
-      </TabsContent>
+          <TabsContent 
+            value="documents" 
+            className="mt-0 animate-in fade-in-50 slide-in-from-bottom-4 duration-300"
+          >
+            <div className="p-6">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Upload className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Documents</h3>
+                  <p className="text-sm text-gray-600">Fichiers et rapports liés au patient</p>
+                </div>
+              </div>
+              <PatientDocuments patientId={patient._id} language={language} />
+            </div>
+          </TabsContent>
 
-      <TabsContent value="actions">
-        <PatientActions
-          actions={patient.actions || []}
-          filter={filter}
-          setFilter={setFilter}
-          onToggle={handleActionToggle}
-        />
-      </TabsContent>
-    </Tabs>
+          <TabsContent 
+            value="actions" 
+            className="mt-0 animate-in fade-in-50 slide-in-from-bottom-4 duration-300"
+          >
+            <div className="p-6">
+              <div className="mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <CheckSquare className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Actions de suivi</h3>
+                    <p className="text-sm text-gray-600">Tâches et interventions réalisées</p>
+                  </div>
+                </div>
+                
+                {/* Statistiques rapides */}
+                {totalActions > 0 && (
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-600">Réalisées:</span>
+                      <span className="font-semibold text-green-600">{completedActions}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                      <span className="text-gray-600">À faire:</span>
+                      <span className="font-semibold text-orange-600">{pendingActions}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <PatientActions
+                actions={patient.actions || []}
+                filter={filter}
+                setFilter={setFilter}
+                onToggle={handleActionToggle}
+              />
+            </div>
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>
   );
 };
 

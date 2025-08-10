@@ -29,14 +29,22 @@ interface PrivateRouteProps {
 }
 
 function App() {
-  const [logged, setLogged] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+    const [logged, setLogged] = useState<boolean>(() => {
+      const storedUser = localStorage.getItem('currentUser');
+      return !!storedUser;
+    });
+
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+      const storedUser = localStorage.getItem('currentUser');
+      return storedUser ? JSON.parse(storedUser) : null;
+    });
 
   console.log("App chargé")
 
   return (
       <div className="min-h-screen bg-gray-50">
-        <NavBar logged={logged} setLogged={setLogged} />
+        <NavBar logged={logged} setLogged={setLogged} currentUser={currentUser} setCurrentUser={setCurrentUser} />
         <div className="max-w-7xl mx-auto px-4 py-6">
           <Routes>
             <Route
@@ -116,8 +124,8 @@ function App() {
             <Route path="/patient/:id" element={<PatientDetail />} />
             <Route path="/patient2/:id" element={<Patient2Detail />} />
             <Route path="/patient/:id/pdf/:pdfId" element={<PdfViewer />} />
-            <Route path="/patient/:id/divide/:pdfPath" element={<Divided />} />
-            <Route path="/section/:id" element={<SectionDetail />} />
+            <Route path="/patient/:id/divide/:pdfPath/:language" element={<Divided />} />
+            <Route path="/section/:id/:language" element={<SectionDetail />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

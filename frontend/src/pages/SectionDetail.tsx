@@ -4,6 +4,7 @@ import ConsentForm from '@/components/ConsentForm';
 
 const SectionDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const { language } = useParams<{ language: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const { title, body, pdfPath } = location.state || {};
@@ -17,27 +18,66 @@ const SectionDetail = () => {
       return;
     }
 
-    const fetchSummary = async () => {
-      try {
-        const res = await fetch('/flask/summarize', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ patientId: id, text: body })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Erreur de l'API");
-        setResponse(data.message);
-      } catch (err: any) {
-        setError(err.message);
+  
+    const calculateAge = (dateOfBirth: string) => {
+      const birthDate = new Date(dateOfBirth);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
       }
+      return age;
     };
 
-    fetchSummary();
-  }, [id, body, token]);
+  const fetchSummary = async () => {
+    try {
+      // Étape 1 – Récupération des infos du patient
+      const patientRes = await fetch(`/api/patient2/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!patientRes.ok) throw new Error("Erreur lors de la récupération du patient");
+
+      const patientData = await patientRes.json();
+
+      const age = calculateAge(patientData.dateNaissance);
+
+      const patientInfo = `
+          Nom : ${patientData.nom}
+          Âge : ${age}
+          Sexe : ${patientData.sexe || "Non spécifié"}
+          Pathologies : ${patientData.pathologies?.join(', ') || "Aucune"}
+          `;
+
+      // Étape 2 – Envoi au backend Flask pour le résumé personnalisé
+      const res = await fetch('/flask/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          patientId: id,
+          language: language,
+          text: body,
+          patientInfo: patientInfo,
+        }),
+      });
+
+      const data = await res.json();
+      console.log("Réponse de l'API :", data);
+      if (!res.ok) throw new Error(data.error || "Erreur de l'API");
+      setResponse(data.summary);
+    } catch (err: any) {
+      console.error("Erreur dans fetchSummary :", err);
+      setError(err.message);
+    }
+  };
+      fetchSummary();
+    }, [id, body, token]);
 
   return (
     <div className="max-w-3xl mx-auto p-6 mt-10 bg-white rounded shadow space-y-6">
@@ -49,11 +89,12 @@ const SectionDetail = () => {
         <p>{error ? `❌ ${error}` : response || 'Chargement...'}</p>
       </div>
 
-      {/* Composant de consentement réutilisable */}
+      {/* Composant de consentement réutilisable }
       <ConsentForm
         patientId={id!}
         sectionTitle={title}
       />
+      {*/}
 
       <div className="text-center">
         <button

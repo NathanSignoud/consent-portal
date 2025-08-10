@@ -4,6 +4,9 @@ import multer from 'multer';
 import path from 'path';
 import xlsx from 'xlsx';
 import fs from 'fs';
+import axios from 'axios';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
@@ -42,6 +45,47 @@ const defaultConsents = [
   }
 ];
 
+async function geocodeAdresse(adresse: {
+  rue: string;
+  codePostal: string;
+  ville: string;
+}): Promise<{ latitude: number | null; longitude: number | null }> {
+  const apiKey = process.env.OPENCAGE_API_KEY;
+  const { rue, codePostal, ville } = adresse;
+
+  if (!apiKey) {
+    console.error("Clé API OpenCage manquante");
+    return { latitude: null, longitude: null };
+  }
+
+  const query = `${rue}, ${codePostal} ${ville}`;
+
+  try {
+    const response = await axios.get('https://api.opencagedata.com/geocode/v1/json', {
+      params: {
+        key: apiKey,
+        q: query,
+        language: 'fr',
+        limit: 1
+      }
+    });
+
+    const data = response.data as any;
+    const results = data.results;
+    if (results && results.length > 0) {
+      return {
+        latitude: results[0].geometry.lat,
+        longitude: results[0].geometry.lng
+      };
+    }
+
+    return { latitude: null, longitude: null };
+  } catch (error) {
+    console.error('Erreur lors du géocodage OpenCage :', error);
+    return { latitude: null, longitude: null };
+  }
+}
+
 // GET all patients
 router.get('/', async (_: Request, res: Response) => {
   try {
@@ -66,8 +110,10 @@ router.get('/:id', async (req: Request, res: Response) => {
 // POST new patient
 router.post('/', upload.none(), async (req: Request, res: Response) => {
   try {
+    console.log('Received data:', req.body);
     const {
       nom,
+      prenom,
       dateNaissance,
       sexe,
       statutIdentite,
@@ -80,7 +126,8 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
       hopitalProvenance,
       actions,
       pathologies,
-      consents
+      consents,
+      adresse
     } = req.body;
 
     const formattedActions = Array.isArray(actions)
@@ -91,9 +138,26 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
         }))
       : [];
 
+    const pathologiesArray = typeof pathologies === 'string' && pathologies.trim() 
+      ? pathologies.split('-').map((p: string) => p.trim()).filter((p: string) => p.length > 0)
+      : [];
+
+    let adresseFinale = adresse;
+
+    if (adresse && adresse.rue && adresse.codePostal && adresse.ville) {
+      const coords = await geocodeAdresse(adresse);
+      adresseFinale = {
+        ...adresse,
+        latitude: coords.latitude,
+        longitude: coords.longitude
+      };
+      console.log(`Adresse géocodée : ${adresse.rue}, ${adresse.ville} => lat: ${coords.latitude}, lon: ${coords.longitude}`);
+    }
+
     const patient = new Patient2({
       nom,
-      dateNaissance: new Date(dateNaissance),
+      prenom,
+      dateNaissance: dateNaissance ? new Date(dateNaissance) : null,
       sexe,
       statutIdentite,
       uniteOrganisationnelle,
@@ -104,15 +168,16 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
       dateSortiePrevue: dateSortiePrevue ? new Date(dateSortiePrevue) : undefined,
       hopitalProvenance,
       actions: formattedActions,
-      pathologies: pathologies?.split('-').map((p: string) => p.trim()).filter((p: string) => p),
-      consents: Array.isArray(consents) ? consents : defaultConsents
+      pathologies: pathologiesArray,
+      consents: Array.isArray(consents) ? consents : defaultConsents,
+      adresse: adresseFinale
     });
 
     await patient.save();
     res.status(201).json(patient);
   } catch (error: any) {
     console.error('Erreur lors de la création du patient2 :', error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 });
 
@@ -140,7 +205,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
         : [];
 
       const actions = actionsRaw.map((action: string) => {
-        const isDone = action.toLowerCase().includes("(réalisé)");
+        const isDone = action.toLowerCase().includes("(réalisé)") || action.toLowerCase().includes("(annulé)") || action.toLowerCase().includes("(réalisé non prévu)");
         return {
           label: action.replace(/\s*(\(Prévu\)|\(Réalisé\))/gi, '').trim(),
           status: isDone ? "réalisé" : "à faire",
@@ -166,7 +231,15 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
         hopitalProvenance: row["Hôpital de provenance"] || null,
         actions,
         pathologies,
-        consents: defaultConsents
+        consents: defaultConsents,
+        adresse: {
+          rue: '',
+          codePostal: '',
+          ville: '',
+          complement: '',
+          latitude: null,
+          longitude: null
+        }
       });
 
       await patient.save();
@@ -182,14 +255,15 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
   }
 });
 
-// PUT update actions and consents
+// PUT update actions, consents, and address
 router.put('/:id', async (req: Request, res: Response) => {
   try {
-    const { actions, consents } = req.body;
+    const { actions, consents, adresse } = req.body;
 
     const updateFields: any = {};
     if (Array.isArray(actions)) updateFields.actions = actions;
     if (Array.isArray(consents)) updateFields.consents = consents;
+    if (adresse) updateFields.adresse = adresse;
 
     const updatedPatient = await Patient2.findByIdAndUpdate(
       req.params.id,
