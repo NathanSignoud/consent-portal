@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import PatientDetailsTabs from "@/components/PatientDetailsTabs";
 import { ArrowLeft, User, Calendar, MapPin, Heart, Shield, Trash2, AlertTriangle, RefreshCw, CheckCircle } from "lucide-react";
 import LanguageSelector from "@/components/LanguageSelector";
 
 interface Action {
+  id?: string;
   label: string;
   status: 'à faire' | 'réalisé';
   date?: string | null;
+  createdAt?: string;
+  completedAt?: string;
 }
 
 const Patient2Detail = () => {
@@ -18,30 +20,36 @@ const Patient2Detail = () => {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'todo' | 'done'>('all');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdatingAction, setIsUpdatingAction] = useState(false);
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
   const [language, setLanguage] = useState('fr');
 
   useEffect(() => {
-    fetch(`http://localhost:5000/api/patient2/${id}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-      .then(res => {
-        if (!res.ok) throw Error("Patient non trouvé");
-        return res.json();
-      })
-      .then(data => {
-        setPatient(data);
-        setIsPending(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setIsPending(false);
-      });
+    fetchPatient();
   }, [id]);
+
+  const fetchPatient = async () => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/patient2/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Patient non trouvé");
+      }
+
+      const data = await response.json();
+      setPatient(data);
+      setIsPending(false);
+    } catch (err: any) {
+      setError(err.message);
+      setIsPending(false);
+    }
+  };
 
   const calculateAge = (dateNaissance: string) => {
     const birth = new Date(dateNaissance);
@@ -52,26 +60,113 @@ const Patient2Detail = () => {
     return age;
   };
 
-  const handleActionToggle = (index: number) => {
-    const updatedActions = [...(patient.actions || [])];
-    const current = updatedActions[index];
-    const newStatus = current.status === 'réalisé' ? 'à faire' : 'réalisé';
-    const newDate = newStatus === 'réalisé' ? new Date().toISOString() : null;
-    const [language, setLanguage] = useState('fr');
+  const handleActionToggle = async (index: number) => {
+    if (isUpdatingAction || !patient) return;
+    
+    setIsUpdatingAction(true);
+    try {
+      const updatedActions = [...(patient.actions || [])];
+      const current = updatedActions[index];
+      const newStatus = current.status === 'réalisé' ? 'à faire' : 'réalisé';
+      const newDate = newStatus === 'réalisé' ? new Date().toISOString() : null;
+      const newCompletedAt = newStatus === 'réalisé' ? new Date().toISOString() : undefined;
 
-    updatedActions[index] = { ...current, status: newStatus, date: newDate };
+      updatedActions[index] = { 
+        ...current, 
+        status: newStatus, 
+        date: newDate,
+        completedAt: newCompletedAt
+      };
 
-    fetch(`http://localhost:5000/api/patient2/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ actions: updatedActions })
-    })
-      .then(res => res.json())
-      .then(data => setPatient(data))
-      .catch(err => console.error("Erreur mise à jour action:", err));
+      const response = await fetch(`http://localhost:5000/api/patient2/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ actions: updatedActions })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la mise à jour');
+      }
+
+      const data = await response.json();
+      setPatient(data);
+      setError(null); // Clear any previous errors
+    } catch (err: any) {
+      console.error("Erreur mise à jour action:", err);
+      setError("Erreur lors de la mise à jour de l'action");
+    } finally {
+      setIsUpdatingAction(false);
+    }
+  };
+
+  const handleAddAction = async (newAction: Omit<Action, 'id'>) => {
+    if (!patient) return;
+
+    try {
+      const actionWithId = {
+        ...newAction,
+        id: `action_${Date.now()}`,
+        createdAt: new Date().toISOString()
+      };
+
+      const updatedActions = [...(patient.actions || []), actionWithId];
+
+      const response = await fetch(`http://localhost:5000/api/patient2/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ actions: updatedActions })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de l\'ajout');
+      }
+
+      const data = await response.json();
+      setPatient(data);
+      setError(null); // Clear any previous errors
+    } catch (err: any) {
+      console.error("Erreur ajout action:", err);
+      setError("Erreur lors de l'ajout de l'action");
+    }
+  };
+
+  const handleDeleteAction = async (index: number) => {
+    if (!patient) return;
+
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette action ?")) {
+      return;
+    }
+
+    try {
+      const updatedActions = [...(patient.actions || [])];
+      updatedActions.splice(index, 1);
+
+      const response = await fetch(`http://localhost:5000/api/patient2/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ actions: updatedActions })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la suppression');
+      }
+
+      const data = await response.json();
+      setPatient(data);
+      setError(null); // Clear any previous errors
+    } catch (err: any) {
+      console.error("Erreur suppression action:", err);
+      setError("Erreur lors de la suppression de l'action");
+    }
   };
 
   const handleDelete = async () => {
@@ -81,25 +176,25 @@ const Patient2Detail = () => {
     
     setIsDeleting(true);
     try {
-      await fetch(`http://localhost:5000/api/patient2/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/patient2/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la suppression');
+      }
+
       navigate('/');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur lors de la suppression:", error);
+      setError("Erreur lors de la suppression du patient");
       setIsDeleting(false);
     }
   };
-
-  const filteredActions: Action[] = patient?.actions?.filter((action: Action) => {
-    if (filter === 'todo') return action.status === 'à faire';
-    if (filter === 'done') return action.status === 'réalisé';
-    return true;
-  }) || [];
 
   const getInitials = (prenom: string = "", nom: string = "") => {
     return `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase();
@@ -152,13 +247,25 @@ const Patient2Detail = () => {
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Erreur</h3>
             <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={() => navigate('/')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Retour
-            </button>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => {
+                  setError(null);
+                  fetchPatient();
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Réessayer
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Retour
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -194,22 +301,38 @@ const Patient2Detail = () => {
 
           <div className="flex items-center gap-4">
             <LanguageSelector onLanguageChange={setLanguage} />
+            
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="group inline-flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl shadow-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+            >
+              {isDeleting ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              )}
+              {isDeleting ? "Suppression..." : "Supprimer le patient"}
+            </button>
           </div>
-        
-
-          <button
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="group inline-flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl shadow-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-          >
-            {isDeleting ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            )}
-            {isDeleting ? "Suppression..." : "Supprimer le patient"}
-          </button>
         </div>
+
+        {/* Message d'erreur */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50/80 backdrop-blur-sm border border-red-200/50 rounded-xl">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <p className="text-red-800 font-medium flex-1">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-600 hover:text-red-800 font-bold text-lg leading-none"
+                title="Fermer"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* En-tête du patient */}
         <div className="bg-white/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-lg p-8 mb-8">
@@ -261,7 +384,7 @@ const Patient2Detail = () => {
                     <span>Pathologies :</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {patient.pathologies.map((pathology, index) => (
+                    {patient.pathologies.map((pathology: string, index: number) => (
                       <span 
                         key={index}
                         className="inline-flex items-center text-sm bg-red-50 text-red-700 px-3 py-1 rounded-lg border border-red-200"
@@ -282,13 +405,16 @@ const Patient2Detail = () => {
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Dossier patient</h2>
             <p className="text-gray-600">Informations, documents et actions de suivi</p>
           </div>
-          {console.log(`Patient ID: ${patient._id}, Language: ${language}`)}
+          
           <PatientDetailsTabs
             patient={patient}
             filter={filter}
             language={language}
             setFilter={setFilter}
             handleActionToggle={handleActionToggle}
+            onAddAction={handleAddAction}
+            onDeleteAction={handleDeleteAction}
+            isUpdatingAction={isUpdatingAction}
           />
         </div>
 

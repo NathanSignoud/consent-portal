@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import express, { Request, Response } from 'express';
 import Patient2 from '../models/Patient2';
 import multer from 'multer';
-import path from 'path';
 import xlsx from 'xlsx';
 import fs from 'fs';
 import axios from 'axios';
@@ -24,7 +24,7 @@ const defaultConsents = [
     validatedAt: null
   },
   {
-    sectionTitle: "Consentement à l’anesthésie",
+    sectionTitle: "Consentement à l'anesthésie",
     answers: ["", "", ""],
     checkboxes: {
       understood: false,
@@ -86,6 +86,34 @@ async function geocodeAdresse(adresse: {
   }
 }
 
+// Helper function pour formater les actions selon le nouveau schéma
+function formatAction(actionData: any, patientName: string = '') {
+  return {
+    // === Legacy (compatibilité) ===
+    label: actionData.label || actionData.term?.fr || 'Action sans nom',
+    status: actionData.status || 'à faire',
+    date: actionData.date || null,
+
+    // === Nouveau bloc ICNP normalisé ===
+    icnp: {
+      id: actionData.icnp?.id || null,
+      axis: actionData.icnp?.axis || 'IC',
+      term: {
+        fr: actionData.icnp?.term?.fr || actionData.label || 'Action sans nom',
+        en: actionData.icnp?.term?.en || null
+      },
+      description: {
+        fr: actionData.icnp?.description?.fr || null,
+        en: actionData.icnp?.description?.en || null
+      }
+    },
+
+    // === Champs métier utiles côté UI ===
+    patientName: patientName,
+    notes: actionData.notes || null
+  };
+}
+
 // GET all patients
 router.get('/', async (_: Request, res: Response) => {
   try {
@@ -130,12 +158,10 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
       adresse
     } = req.body;
 
+    // Formatage des actions selon le nouveau schéma ActionSchema
+    const patientFullName = `${nom || ''} ${prenom || ''}`.trim();
     const formattedActions = Array.isArray(actions)
-      ? actions.map((a: any) => ({
-          label: a.label,
-          status: a.status || 'à faire',
-          date: a.date || null
-        }))
+      ? actions.map((a: any) => formatAction(a, patientFullName))
       : [];
 
     const pathologiesArray = typeof pathologies === 'string' && pathologies.trim() 
@@ -144,6 +170,7 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
 
     let adresseFinale = adresse;
 
+    // Géocodage automatique si adresse complète
     if (adresse && adresse.rue && adresse.codePostal && adresse.ville) {
       const coords = await geocodeAdresse(adresse);
       adresseFinale = {
@@ -204,12 +231,39 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
         ? row["actions"].split("\n").map((a: string) => a.trim()).filter(Boolean)
         : [];
 
+      const patientName = row["N. Ut."] || '';
+
+      // Formatage des actions selon le nouveau schéma ActionSchema
       const actions = actionsRaw.map((action: string) => {
-        const isDone = action.toLowerCase().includes("(réalisé)") || action.toLowerCase().includes("(annulé)") || action.toLowerCase().includes("(réalisé non prévu)");
+        const isDone = action.toLowerCase().includes("(réalisé)") || 
+                       action.toLowerCase().includes("(annulé)") || 
+                       action.toLowerCase().includes("(réalisé non prévu)");
+        
+        const cleanLabel = action.replace(/\s*(\(Prévu\)|\(Réalisé\)|\(Annulé\)|\(Réalisé non prévu\))/gi, '').trim();
+        
         return {
-          label: action.replace(/\s*(\(Prévu\)|\(Réalisé\))/gi, '').trim(),
+          // === Legacy (compatibilité) ===
+          label: cleanLabel,
           status: isDone ? "réalisé" : "à faire",
-          date: null
+          date: null,
+
+          // === Nouveau bloc ICNP (vide pour import legacy) ===
+          icnp: {
+            id: null, // Sera rempli plus tard si nécessaire
+            axis: 'IC',
+            term: {
+              fr: cleanLabel,
+              en: null
+            },
+            description: {
+              fr: null,
+              en: null
+            }
+          },
+
+          // === Champs métier ===
+          patientName: patientName,
+          notes: null
         };
       });
 
@@ -251,7 +305,7 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Erreur lors de l’importation.' });
+    res.status(500).json({ message: 'Erreur lors de l\'importation.' });
   }
 });
 
@@ -261,7 +315,15 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { actions, consents, adresse } = req.body;
 
     const updateFields: any = {};
-    if (Array.isArray(actions)) updateFields.actions = actions;
+    
+    // Formatage des actions si présentes
+    if (Array.isArray(actions)) {
+      const patient = await Patient2.findById(req.params.id);
+      const patientName = patient ? `${patient.nom} ${patient.prenom}`.trim() : '';
+      
+      updateFields.actions = actions.map((a: any) => formatAction(a, patientName));
+    }
+    
     if (Array.isArray(consents)) updateFields.consents = consents;
     if (adresse) updateFields.adresse = adresse;
 
@@ -292,6 +354,40 @@ router.delete('/:id', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Erreur suppression:', err);
     res.status(500).json({ message: 'Erreur lors de la suppression' });
+  }
+});
+
+// BONUS: Route pour migrer les anciennes actions vers le nouveau format ICNP
+router.post('/migrate-actions', async (req: Request, res: Response) => {
+  try {
+    const patients = await Patient2.find({ 'actions.icnp.id': null });
+    let migratedCount = 0;
+
+    for (const patient of patients) {
+      const patientName = `${patient.nom} ${patient.prenom}`.trim();
+      let hasChanges = false;
+
+      const updatedActions = patient.actions.map((action: any) => {
+        if (!action.icnp || !action.icnp.id) {
+          hasChanges = true;
+          return formatAction(action, patientName);
+        }
+        return action;
+      });
+
+      if (hasChanges) {
+        await Patient2.findByIdAndUpdate(patient._id, { actions: updatedActions });
+        migratedCount++;
+      }
+    }
+
+    res.json({ 
+      message: `Migration terminée: ${migratedCount} patients mis à jour`,
+      migratedCount 
+    });
+  } catch (err: any) {
+    console.error('Erreur lors de la migration:', err);
+    res.status(500).json({ message: 'Erreur lors de la migration' });
   }
 });
 

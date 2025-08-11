@@ -3,7 +3,7 @@ import PatientInfos from "@/components/patient2/PatientInfos";
 import PatientDocuments from "@/components/patient2/PatientDocuments";
 import PatientActions from "@/components/patient2/PatientActions";
 import { Patient2, Action } from "@/types/patient2";
-import { User, FileText, Activity, Info, Upload, CheckSquare } from "lucide-react";
+import { User, FileText, Activity, Info, Upload, CheckSquare, AlertTriangle } from "lucide-react";
 
 interface Props {
   patient: Patient2;
@@ -11,6 +11,9 @@ interface Props {
   language: string;
   setFilter: (f: 'all' | 'todo' | 'done') => void;
   handleActionToggle: (index: number) => void;
+  onAddAction?: (newAction: Omit<Action, 'id'>) => void;
+  onDeleteAction?: (index: number) => void;
+  isUpdatingAction?: boolean;
 }
 
 const PatientDetailsTabs = ({
@@ -18,9 +21,22 @@ const PatientDetailsTabs = ({
   filter,
   language,
   setFilter,
-  handleActionToggle
-  
+  handleActionToggle,
+  onAddAction,
+  onDeleteAction,
+  isUpdatingAction
 }: Props) => {
+
+  // Debug temporaire
+  console.log('PatientDetailsTabs props:', {
+    patient: !!patient,
+    filter,
+    setFilter: typeof setFilter,
+    handleActionToggle: typeof handleActionToggle,
+    onAddAction: typeof onAddAction,
+    onDeleteAction: typeof onDeleteAction,
+    isUpdatingAction
+  });
 
   console.log(`Patient Details Tabs - Patient ID: ${patient._id}, Language: ${language}`);
   
@@ -147,12 +163,30 @@ const PatientDetailsTabs = ({
                 )}
               </div>
               
-              <PatientActions
-                actions={patient.actions || []}
-                filter={filter}
-                setFilter={setFilter}
-                onToggle={handleActionToggle}
-              />
+              {/* Vérification stricte des props */}
+              {filter && setFilter && handleActionToggle ? (
+                <PatientActions
+                  actions={patient.actions || []}
+                  filter={filter}
+                  setFilter={setFilter}
+                  onToggle={handleActionToggle}
+                  onAddAction={onAddAction}
+                  onDeleteAction={onDeleteAction}
+                  isUpdating={isUpdatingAction}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                  </div>
+                  <p className="text-red-600 font-medium">Erreur de configuration</p>
+                  <div className="text-xs text-gray-500 mt-2 space-y-1">
+                    <p>filter: {JSON.stringify(filter)}</p>
+                    <p>setFilter: {String(typeof setFilter)}</p>
+                    <p>handleActionToggle: {String(typeof handleActionToggle)}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
         </div>
