@@ -4,7 +4,6 @@ import {
   ChevronDown, 
   Check, 
   Settings, 
-  Translate,
   Volume2,
   VolumeX,
   Download,

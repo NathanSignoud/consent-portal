@@ -53,8 +53,8 @@ const createSimpleRateLimit = (maxRequests: number, windowMs: number) => {
   };
 };
 
-const loginLimiter = createSimpleRateLimit(5, 15 * 60 * 1000); // 5 req per 15min
-const registerLimiter = createSimpleRateLimit(3, 60 * 60 * 1000); // 3 req per hour
+const loginLimiter = createSimpleRateLimit(30, 15 * 60 * 1000); // 30 req per 15min
+const registerLimiter = createSimpleRateLimit(30, 60 * 60 * 1000); // 30 req per hour
 
 // Validation des données de connexion
 const validateLogin = validateRequest({
