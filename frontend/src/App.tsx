@@ -8,7 +8,7 @@ import PrivateRoute from './components/PrivateRoute';
 
 // Pages
 import HubDoctor from './pages/HubDoctor';
-import HubAdmin from './pages/HubAdmin';
+import HubAdmin from './pages/HubNurse';
 import HubPatient from './pages/HubPatient';
 import Create from './pages/Create';
 import Login from './pages/Login';

@@ -158,27 +158,7 @@ const getNavItemsByRole = (userRole?: string): NavItem[] => {
     }
   ];
 
-  if (userRole === 'nurse' || userRole === 'doctor' || userRole === 'admin') {
-    baseItems.push(
-      {
-        id: 'patients',
-        to: '/patients',
-        label: 'Patients',
-        icon: Users,
-        description: 'Gestion des patients',
-        shortcut: 'U'
-      },
-      {
-        id: 'interventions',
-        to: '/interventions',
-        label: 'Interventions ICNP',
-        icon: Stethoscope,
-        badge: 'ICNP',
-        description: 'Référentiel des interventions',
-        shortcut: 'I'
-      }
-    );
-  }
+ 
 
   if (userRole === 'admin') {
     baseItems.push(
@@ -326,10 +306,9 @@ const NavBar: React.FC<NavBarProps> = memo(({
 
   // Stats utilisateur
   const userStats = {
-    tasksToday: 8,
+    tasksToday: 10,
     completed: 5,
-    patients: 12,
-    interventions: 25
+    patients: 0
   };
 
   // Navigation mobile fermée sur changement de route
@@ -383,9 +362,6 @@ const NavBar: React.FC<NavBarProps> = memo(({
                 <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                   Portail Aide Soignant
                 </h1>
-                <p className="text-xs text-gray-500">
-                  {logged && currentUser ? `Connecté en tant que ${currentUser.role}` : 'Gestion des soins ICNP'}
-                </p>
               </div>
             </div>
           </div>
@@ -425,34 +401,6 @@ const NavBar: React.FC<NavBarProps> = memo(({
               );
             })}
           </div>
-
-          {/* Barre de recherche (desktop) */}
-          {searchEnabled && logged && (
-            <div className="hidden md:flex items-center flex-1 max-w-lg mx-8">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder={searchPlaceholder}
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setIsSearchFocused(false)}
-                  className="pl-9 bg-gray-50/50 border-gray-200/50 rounded-lg focus:bg-white transition-all duration-200"
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSearch('')}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Actions et profil */}
           <div className="flex items-center space-x-3">
@@ -536,35 +484,6 @@ const NavBar: React.FC<NavBarProps> = memo(({
                     </div>
                   </PopoverContent>
                 </Popover>
-
-                {/* Actions rapides */}
-                {showQuickActions && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <UserPlus className="w-5 h-5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions rapides</DropdownMenuLabel>
-                      <DropdownMenuItem>
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Nouveau patient
-                        <DropdownMenuShortcut>⌘N</DropdownMenuShortcut>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Activity className="w-4 h-4 mr-2" />
-                        Nouvelle intervention
-                        <DropdownMenuShortcut>⌘I</DropdownMenuShortcut>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Calendar className="w-4 h-4 mr-2" />
-                        Planifier une tâche
-                        <DropdownMenuShortcut>⌘T</DropdownMenuShortcut>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
 
                 {/* Profil utilisateur */}
                 <DropdownMenu>

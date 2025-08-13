@@ -123,14 +123,9 @@ const roleHierarchy: Record<string, Role> = {
     name: 'nurse',
     displayName: 'Aide-soignant(e)',
     permissions: [
-      { resource: 'patients', action: 'read' },
-      { resource: 'patients', action: 'update' },
-      { resource: 'interventions', action: 'read' },
-      { resource: 'interventions', action: 'create' },
-      { resource: 'calendar', action: 'read' },
-      { resource: 'calendar', action: 'update' }
+      { resource: '*', action: '*' }
     ],
-    hierarchy: 2,
+    hierarchy: 4,
     isActive: true,
     description: 'Gestion des soins et interventions ICNP'
   },
