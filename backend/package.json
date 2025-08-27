@@ -3,10 +3,17 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --project tsconfig.server.json src/index.ts",
-    "prestart": "npm run build"
+    "start": "node dist/index.js",
+    "build": "tsc --project tsconfig.server.json",
+    "fix-indexes": "ts-node scripts/fixTextIndex.ts",
+    "setup-indexes": "ts-node scripts/createIndexes.ts",
+    "setup-indexes:create": "ts-node scripts/createIndexes.ts create",
+    "setup-indexes:drop": "ts-node scripts/createIndexes.ts drop", 
+    "setup-indexes:list": "ts-node scripts/createIndexes.ts list",
+    "db:repair": "npm run fix-indexes",
+    "db:init": "npm run setup-indexes",
+    "db:reset": "npm run setup-indexes:drop && npm run setup-indexes:create"
   },
   "devDependencies": {
     "@types/axios": "^0.9.36",
