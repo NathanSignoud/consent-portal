@@ -138,7 +138,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // POST new patient
 router.post('/', upload.none(), async (req: Request, res: Response) => {
   try {
-    console.log('Received data:', req.body);
+    console.log('📥 Données reçues:', req.body);
     const {
       nom,
       prenom,
@@ -164,21 +164,68 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
       ? actions.map((a: any) => formatAction(a, patientFullName))
       : [];
 
-    const pathologiesArray = typeof pathologies === 'string' && pathologies.trim() 
-      ? pathologies.split('-').map((p: string) => p.trim()).filter((p: string) => p.length > 0)
-      : [];
+    // ========================================
+    // CORRECTION PATHOLOGIES BACKEND
+    // ========================================
+    
+    console.log("🔍 Pathologies reçues (type/valeur):", typeof pathologies, pathologies);
+    
+    let pathologiesArray: string[] = [];
+    
+    if (Array.isArray(pathologies)) {
+      // Si c'est déjà un array (nouveau frontend corrigé)
+      pathologiesArray = pathologies
+        .filter(p => p && typeof p === 'string' && p.trim().length > 0)
+        .map(p => p.trim());
+      console.log("✅ Pathologies (array direct):", pathologiesArray);
+    } else if (typeof pathologies === 'string' && pathologies.trim()) {
+      // Si c'est encore une string (legacy ou erreur)
+      pathologiesArray = pathologies
+        .split('-')
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length > 0);
+      console.log("✅ Pathologies (string divisée):", pathologiesArray);
+    } else {
+      console.log("📝 Aucune pathologie fournie");
+    }
+
+    // Validation des pathologies
+    if (pathologiesArray.length > 0) {
+      // Validation : pas plus de 20 pathologies
+      if (pathologiesArray.length > 20) {
+        return res.status(400).json({ 
+          message: 'Trop de pathologies (maximum 20 autorisées)', 
+          pathologies: pathologiesArray 
+        });
+      }
+      
+      // Validation : longueur de chaque pathologie
+      const invalidPathologies = pathologiesArray.filter(p => p.length > 100);
+      if (invalidPathologies.length > 0) {
+        return res.status(400).json({ 
+          message: 'Certaines pathologies sont trop longues (maximum 100 caractères)', 
+          invalidPathologies 
+        });
+      }
+    }
 
     let adresseFinale = adresse;
 
     // Géocodage automatique si adresse complète
     if (adresse && adresse.rue && adresse.codePostal && adresse.ville) {
-      const coords = await geocodeAdresse(adresse);
-      adresseFinale = {
-        ...adresse,
-        latitude: coords.latitude,
-        longitude: coords.longitude
-      };
-      console.log(`Adresse géocodée : ${adresse.rue}, ${adresse.ville} => lat: ${coords.latitude}, lon: ${coords.longitude}`);
+      try {
+        const coords = await geocodeAdresse(adresse);
+        adresseFinale = {
+          ...adresse,
+          latitude: coords.latitude,
+          longitude: coords.longitude
+        };
+        console.log(`🗺️ Adresse géocodée : ${adresse.rue}, ${adresse.ville} => lat: ${coords.latitude}, lon: ${coords.longitude}`);
+      } catch (geocodeError) {
+        console.warn("⚠️ Erreur géocodage:", geocodeError);
+        // Continuer sans géocodage en cas d'erreur
+        adresseFinale = adresse;
+      }
     }
 
     const patient = new Patient2({
@@ -195,16 +242,216 @@ router.post('/', upload.none(), async (req: Request, res: Response) => {
       dateSortiePrevue: dateSortiePrevue ? new Date(dateSortiePrevue) : undefined,
       hopitalProvenance,
       actions: formattedActions,
-      pathologies: pathologiesArray,
+      pathologies: pathologiesArray, // ← Array correctement formaté
       consents: Array.isArray(consents) ? consents : defaultConsents,
       adresse: adresseFinale
     });
 
+    console.log("💾 Patient à sauvegarder:", {
+      nom: patient.nom,
+      prenom: patient.prenom,
+      pathologies: patient.pathologies,
+      pathologiesCount: patient.pathologies?.length || 0,
+      actionsCount: patient.actions.length
+    });
+
     await patient.save();
+    
+    console.log("✅ Patient sauvegardé avec succès");
+    console.log("✅ Pathologies finales:", patient.pathologies);
+    
     res.status(201).json(patient);
   } catch (error: any) {
-    console.error('Erreur lors de la création du patient2 :', error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    console.error('❌ Erreur lors de la création du patient2 :', error);
+    
+    // Gestion d'erreurs spécifiques
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map((err: any) => ({
+        field: err.path,
+        message: err.message,
+        value: err.value
+      }));
+      
+      return res.status(400).json({
+        message: 'Erreur de validation des données',
+        errors: validationErrors
+      });
+    }
+    
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: 'Un patient avec ces informations existe déjà',
+        duplicateFields: Object.keys(error.keyPattern)
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Erreur serveur lors de la création du patient', 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne'
+    });
+  }
+});
+
+// ========================================
+// ROUTE UPDATE CORRIGÉE AUSSI
+// ========================================
+
+// PUT update patient
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { actions, consents, adresse, pathologies } = req.body;
+
+    const updateFields: any = {};
+    
+    // Formatage des actions si présentes
+    if (Array.isArray(actions)) {
+      const patient = await Patient2.findById(req.params.id);
+      const patientName = patient ? `${patient.nom} ${patient.prenom}`.trim() : '';
+      updateFields.actions = actions.map((a: any) => formatAction(a, patientName));
+    }
+    
+    // Traitement des pathologies pour l'update aussi
+    if (pathologies !== undefined) {
+      let pathologiesArray: string[] = [];
+      
+      if (Array.isArray(pathologies)) {
+        pathologiesArray = pathologies
+          .filter(p => p && typeof p === 'string' && p.trim().length > 0)
+          .map(p => p.trim());
+      } else if (typeof pathologies === 'string' && pathologies.trim()) {
+        pathologiesArray = pathologies
+          .split('-')
+          .map((p: string) => p.trim())
+          .filter((p: string) => p.length > 0);
+      }
+      
+      updateFields.pathologies = pathologiesArray;
+      console.log("🔄 Update pathologies:", pathologiesArray);
+    }
+
+    // Traitement des consents
+    if (Array.isArray(consents)) {
+      updateFields.consents = consents.map((consent: any) => ({
+        ...consent,
+        validatedAt: consent.validatedAt || new Date()
+      }));
+    }
+
+    // Traitement de l'adresse
+    if (adresse) {
+      let adresseFinale = adresse;
+      
+      // Géocodage si adresse complète
+      if (adresse.rue && adresse.codePostal && adresse.ville) {
+        try {
+          const coords = await geocodeAdresse(adresse);
+          adresseFinale = {
+            ...adresse,
+            latitude: coords.latitude,
+            longitude: coords.longitude
+          };
+        } catch (geocodeError) {
+          console.warn("⚠️ Erreur géocodage lors de l'update:", geocodeError);
+          adresseFinale = adresse;
+        }
+      }
+      
+      updateFields.adresse = adresseFinale;
+    }
+
+    const updatedPatient = await Patient2.findByIdAndUpdate(
+      req.params.id,
+      updateFields,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedPatient) {
+      return res.status(404).json({ message: 'Patient non trouvé' });
+    }
+
+    console.log("✅ Patient mis à jour:", {
+      id: updatedPatient._id,
+      pathologies: updatedPatient.pathologies
+    });
+
+    res.json(updatedPatient);
+  } catch (error: any) {
+    console.error('❌ Erreur lors de la mise à jour du patient2 :', error);
+    res.status(500).json({ 
+      message: 'Erreur serveur lors de la mise à jour', 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne'
+    });
+  }
+});
+
+// ========================================
+// FONCTION UTILITAIRE POUR DEBUG
+// ========================================
+
+// Route de test pour vérifier le traitement des pathologies
+router.post('/test-pathologies', async (req: Request, res: Response) => {
+  try {
+    const { pathologies } = req.body;
+    
+    console.log("🧪 Test pathologies - Input:", pathologies, typeof pathologies);
+    
+    let result: string[] = [];
+    
+    if (Array.isArray(pathologies)) {
+      result = pathologies
+        .filter(p => p && typeof p === 'string' && p.trim().length > 0)
+        .map(p => p.trim());
+    } else if (typeof pathologies === 'string' && pathologies.trim()) {
+      result = pathologies
+        .split('-')
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length > 0);
+    }
+    
+    res.json({
+      input: pathologies,
+      inputType: typeof pathologies,
+      output: result,
+      outputCount: result.length,
+      processed: result.map((p, i) => `${i + 1}. ${p}`).join(' | ')
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========================================
+// ROUTE DE DEBUG POUR VÉRIFIER UN PATIENT
+// ========================================
+
+router.get('/:id/debug', async (req: Request, res: Response) => {
+  try {
+    const patient = await Patient2.findById(req.params.id);
+    
+    if (!patient) {
+      return res.status(404).json({ message: 'Patient non trouvé' });
+    }
+    
+    res.json({
+      id: patient._id,
+      nom: patient.nom,
+      prenom: patient.prenom,
+      pathologies: {
+        value: patient.pathologies,
+        type: typeof patient.pathologies,
+        isArray: Array.isArray(patient.pathologies),
+        count: patient.pathologies?.length || 0,
+        items: patient.pathologies || []
+      },
+      actions: {
+        count: patient.actions?.length || 0
+      },
+      adresse: patient.adresse,
+      createdAt: patient.createdAt,
+      updatedAt: patient.updatedAt
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -306,41 +553,6 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erreur lors de l\'importation.' });
-  }
-});
-
-// PUT update actions, consents, and address
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const { actions, consents, adresse } = req.body;
-
-    const updateFields: any = {};
-    
-    // Formatage des actions si présentes
-    if (Array.isArray(actions)) {
-      const patient = await Patient2.findById(req.params.id);
-      const patientName = patient ? `${patient.nom} ${patient.prenom}`.trim() : '';
-      
-      updateFields.actions = actions.map((a: any) => formatAction(a, patientName));
-    }
-    
-    if (Array.isArray(consents)) updateFields.consents = consents;
-    if (adresse) updateFields.adresse = adresse;
-
-    const updatedPatient = await Patient2.findByIdAndUpdate(
-      req.params.id,
-      updateFields,
-      { new: true }
-    );
-
-    if (!updatedPatient) {
-      return res.status(404).json({ message: 'Patient non trouvé' });
-    }
-
-    res.json(updatedPatient);
-  } catch (err) {
-    console.error('Erreur lors de la mise à jour du patient:', err);
-    res.status(500).json({ message: 'Erreur serveur' });
   }
 });
 

@@ -1,34 +1,35 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Loader2, Heart, AlertTriangle } from 'lucide-react';
+import { Heart, AlertTriangle, Loader2 } from 'lucide-react';
 
-// Composants
+// Import des composants
 import NavBar from './components/NavBar';
 import PrivateRoute from './components/PrivateRoute';
 
-// Pages
+// Import des pages (routes exactes du projet)
 import HubDoctor from './pages/HubDoctor';
-import HubAdmin from './pages/HubNurse';
+import HubAdmin from './pages/HubNurse';  // Note: le fichier s'appelle HubNurse mais exporte HubAdmin
 import HubPatient from './pages/HubPatient';
 import Create from './pages/Create';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import CalendarPage from './pages/Calendar';
 import PatientDetail from './pages/PatientDetail';
 import Patient2Detail from './pages/Patient2Detail';
-import NotFound from './pages/NotFound';
-import Register from './pages/Register';
 import PdfViewer from './pages/PdfViewer';
 import Divided from './pages/Divided';
-import CalendarPage from './pages/Calendar';
 import SectionDetail from './pages/SectionDetail';
+import NotFound from './pages/NotFound';
 
 // Types
 interface User {
   id: string;
   email: string;
   role: 'user' | 'doctor' | 'nurse' | 'admin';
+  firstName?: string;
+  lastName?: string;
   createdAt?: string;
   lastLogin?: string;
-  [key: string]: any;
 }
 
 interface AppState {
@@ -38,7 +39,7 @@ interface AppState {
   error: string | null;
 }
 
-// Utilitaires pour la gestion des rôles
+// Utilitaires pour la gestion des rôles (exactes du projet original)
 const getUserRedirectPath = (userRole: string): string => {
   switch (userRole) {
     case 'admin':
@@ -69,15 +70,7 @@ const getRoleDisplayName = (role: string): string => {
   }
 };
 
-// Mapping des rôles pour les permissions
-const ROLE_PERMISSIONS = {
-  admin: ['admin', 'nurse', 'doctor', 'user'], // Admin peut tout
-  doctor: ['doctor'], // Médecin accès médecin uniquement
-  nurse: ['nurse', 'user'], // Personnel soignant peut voir patients
-  user: ['user'] // Patient accès patient uniquement
-};
-
-// Composant de chargement global
+// Composant de chargement
 const AppLoader: React.FC = () => (
   <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
     <div className="text-center">
@@ -92,7 +85,7 @@ const AppLoader: React.FC = () => (
   </div>
 );
 
-// Composant d'erreur globale
+// Composant d'erreur
 const AppError: React.FC<{ error: string; onRetry: () => void }> = ({ error, onRetry }) => (
   <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 flex items-center justify-center">
     <div className="text-center max-w-md mx-4">
@@ -140,33 +133,34 @@ const HomePage: React.FC = () => {
             onClick={() => navigate('/register')}
             className="px-8 py-3 bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
           >
-            Créer un compte
+            S'inscrire
           </button>
         </div>
 
-        <div className="mt-16 grid md:grid-cols-3 gap-8">
-          <div className="p-6 bg-white rounded-xl shadow-md">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+        {/* Fonctionnalités */}
+        <div className="grid md:grid-cols-3 gap-6 mt-16">
+          <div className="p-6 bg-white rounded-xl shadow-sm">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4 mx-auto">
               <Heart className="w-6 h-6 text-blue-600" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Patients</h3>
-            <p className="text-gray-600">Accès sécurisé à votre dossier médical et suivi de soins</p>
+            <h3 className="font-semibold mb-2">Gestion Patients</h3>
+            <p className="text-gray-600 text-sm">Système complet de suivi médical et administratif</p>
           </div>
           
-          <div className="p-6 bg-white rounded-xl shadow-md">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+          <div className="p-6 bg-white rounded-xl shadow-sm">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 mx-auto">
               <Heart className="w-6 h-6 text-green-600" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Médecins</h3>
-            <p className="text-gray-600">Gestion complète des dossiers patients et prescriptions</p>
+            <h3 className="font-semibold mb-2">Planning Intégré</h3>
+            <p className="text-gray-600 text-sm">Calendrier intelligent pour optimiser les interventions</p>
           </div>
           
-          <div className="p-6 bg-white rounded-xl shadow-md">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+          <div className="p-6 bg-white rounded-xl shadow-sm">
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4 mx-auto">
               <Heart className="w-6 h-6 text-purple-600" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Personnel</h3>
-            <p className="text-gray-600">Administration des soins et gestion des patients</p>
+            <h3 className="font-semibold mb-2">Sécurité Renforcée</h3>
+            <p className="text-gray-600 text-sm">Authentification sécurisée et gestion des accès par rôles</p>
           </div>
         </div>
       </div>
@@ -174,8 +168,11 @@ const HomePage: React.FC = () => {
   );
 };
 
+// Composant principal App (avec les VRAIES routes du projet)
 function App() {
-  // État principal de l'application
+  const location = useLocation();
+  const navigate = useNavigate();
+  
   const [appState, setAppState] = useState<AppState>({
     logged: false,
     currentUser: null,
@@ -183,61 +180,21 @@ function App() {
     error: null
   });
 
-  const location = useLocation();
-  const navigate = useNavigate();
-
   // Initialisation de l'application
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        setAppState(prev => ({ ...prev, isLoading: true, error: null }));
+        const token = localStorage.getItem('token');
+        const userData = localStorage.getItem('currentUser');
 
-        // Vérifier les données stockées
-        const storedToken = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('currentUser');
-
-        if (storedToken && storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            
-            // Valider le token côté serveur (optionnel)
-            const response = await fetch('/api/auth/me', {
-              headers: {
-                'Authorization': `Bearer ${storedToken}`,
-                'Content-Type': 'application/json'
-              }
-            });
-
-            if (response.ok) {
-              const validatedUser = await response.json();
-              setAppState({
-                logged: true,
-                currentUser: validatedUser.user || userData,
-                isLoading: false,
-                error: null
-              });
-            } else {
-              // Token invalide, nettoyer
-              localStorage.removeItem('token');
-              localStorage.removeItem('currentUser');
-              setAppState({
-                logged: false,
-                currentUser: null,
-                isLoading: false,
-                error: null
-              });
-            }
-          } catch (parseError) {
-            console.error('Erreur parsing user data:', parseError);
-            localStorage.removeItem('token');
-            localStorage.removeItem('currentUser');
-            setAppState({
-              logged: false,
-              currentUser: null,
-              isLoading: false,
-              error: null
-            });
-          }
+        if (token && userData) {
+          const user = JSON.parse(userData);
+          setAppState({
+            logged: true,
+            currentUser: user,
+            isLoading: false,
+            error: null
+          });
         } else {
           setAppState({
             logged: false,
@@ -302,13 +259,15 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
+      {/* Navigation nettoyée (sans stats/admin/notifications/debug) */}
       <NavBar 
         logged={appState.logged} 
         setLogged={setLogged} 
         currentUser={appState.currentUser} 
         setCurrentUser={setCurrentUser}
+        currentPath={location.pathname}
         onLogout={handleLogout}
+        searchEnabled={appState.logged}
       />
 
       {/* Contenu principal */}
@@ -359,7 +318,9 @@ function App() {
             }
           />
 
-          {/* Routes protégées - Hub Admin */}
+          {/* ===== ROUTES HUB (principales du projet) ===== */}
+          
+          {/* Hub Admin - Pour admin et nurse */}
           <Route
             path="/hub/admin"
             element={
@@ -374,7 +335,7 @@ function App() {
             }
           />
 
-          {/* Routes protégées - Hub Médecin */}
+          {/* Hub Médecin - Pour doctor uniquement */}
           <Route
             path="/hub/medecin"
             element={
@@ -389,7 +350,7 @@ function App() {
             }
           />
 
-          {/* Routes protégées - Hub Patient */}
+          {/* Hub Patient - Pour user uniquement */}
           <Route
             path="/hub/patient"
             element={
@@ -404,7 +365,9 @@ function App() {
             }
           />
 
-          {/* Routes fonctionnelles - Calendrier */}
+          {/* ===== ROUTES FONCTIONNELLES ===== */}
+
+          {/* Calendrier */}
           <Route
             path="/calendar"
             element={
@@ -419,79 +382,7 @@ function App() {
             }
           />
 
-          {/* Routes patients */}
-          <Route
-            path="/patient/:id"
-            element={
-              <PrivateRoute
-                logged={appState.logged}
-                currentUser={appState.currentUser}
-                allowedRoles={['admin', 'doctor', 'nurse']}
-                redirectTo="/login"
-              >
-                <PatientDetail />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/patient2/:id"
-            element={
-              <PrivateRoute
-                logged={appState.logged}
-                currentUser={appState.currentUser}
-                allowedRoles={['admin', 'doctor', 'nurse']}
-                redirectTo="/login"
-              >
-                <Patient2Detail />
-              </PrivateRoute>
-            }
-          />
-
-          {/* Routes documents et PDF */}
-          <Route
-            path="/patient/:id/pdf/:pdfId"
-            element={
-              <PrivateRoute
-                logged={appState.logged}
-                currentUser={appState.currentUser}
-                allowedRoles={['admin', 'doctor', 'nurse']}
-                redirectTo="/login"
-              >
-                <PdfViewer />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/patient/:id/divide/:pdfPath/:language"
-            element={
-              <PrivateRoute
-                logged={appState.logged}
-                currentUser={appState.currentUser}
-                allowedRoles={['admin', 'doctor', 'nurse']}
-                redirectTo="/login"
-              >
-                <Divided />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/section/:id/:language"
-            element={
-              <PrivateRoute
-                logged={appState.logged}
-                currentUser={appState.currentUser}
-                allowedRoles={['admin', 'doctor', 'nurse', 'user']}
-                redirectTo="/login"
-              >
-                <SectionDetail />
-              </PrivateRoute>
-            }
-          />
-
-          {/* Routes utilitaires */}
+          {/* Création de patient */}
           <Route
             path="/create"
             element={
@@ -506,19 +397,89 @@ function App() {
             }
           />
 
+          {/* ===== ROUTES PATIENTS ===== */}
+
+          {/* Détail patient (ancien modèle) */}
+          <Route
+            path="/patient/:id"
+            element={
+              <PrivateRoute
+                logged={appState.logged}
+                currentUser={appState.currentUser}
+                allowedRoles={['admin', 'doctor', 'nurse']}
+                redirectTo="/login"
+              >
+                <PatientDetail />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Détail patient2 (nouveau modèle) */}
+          <Route
+            path="/patient2/:id"
+            element={
+              <PrivateRoute
+                logged={appState.logged}
+                currentUser={appState.currentUser}
+                allowedRoles={['admin', 'doctor', 'nurse']}
+                redirectTo="/login"
+              >
+                <Patient2Detail />
+              </PrivateRoute>
+            }
+          />
+
+          {/* ===== ROUTES DOCUMENTS ===== */}
+
+          {/* Visualiseur PDF */}
+          <Route
+            path="/patient/:id/pdf/:pdfId"
+            element={
+              <PrivateRoute
+                logged={appState.logged}
+                currentUser={appState.currentUser}
+                allowedRoles={['admin', 'doctor', 'nurse']}
+                redirectTo="/login"
+              >
+                <PdfViewer />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Document divisé */}
+          <Route
+            path="/patient/:id/divide/:pdfPath/:language"
+            element={
+              <PrivateRoute
+                logged={appState.logged}
+                currentUser={appState.currentUser}
+                allowedRoles={['admin', 'doctor', 'nurse']}
+                redirectTo="/login"
+              >
+                <Divided />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Détail section */}
+          <Route
+            path="/section/:id/:language"
+            element={
+              <PrivateRoute
+                logged={appState.logged}
+                currentUser={appState.currentUser}
+                allowedRoles={['admin', 'doctor', 'nurse', 'user']}
+                redirectTo="/login"
+              >
+                <SectionDetail />
+              </PrivateRoute>
+            }
+          />
+
           {/* Route 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-
-      {/* Informations de debug en développement */}
-      {process.env.NODE_ENV === 'development' && appState.currentUser && (
-        <div className="fixed bottom-4 right-4 bg-black/80 text-white p-3 rounded-lg text-xs z-50">
-          <div>👤 {appState.currentUser.email}</div>
-          <div>🔐 {getRoleDisplayName(appState.currentUser.role)}</div>
-          <div>📍 {location.pathname}</div>
-        </div>
-      )}
     </div>
   );
 }

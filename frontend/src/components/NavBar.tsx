@@ -8,26 +8,18 @@ import {
   Menu, 
   X, 
   Search,
-  Bell,
   Settings,
   User,
   Users,
   Activity,
   Heart,
   FileText,
-  BarChart3,
-  Shield,
   ChevronDown,
   MapPin,
   Clock,
-  AlertCircle,
-  CheckCircle,
   Stethoscope,
   Bookmark,
-  HelpCircle,
-  Moon,
-  Sun,
-  Palette
+  HelpCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,11 +32,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuLabel,
-  DropdownMenuGroup,
-  DropdownMenuShortcut
+  DropdownMenuGroup
 } from '@/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Progress } from '@/components/ui/progress';
 import LanguageSelector from './LanguageSelector';
 import { CurrentUser } from '@/types';
 
@@ -57,34 +46,10 @@ interface NavItem {
   badge?: string | number;
   isNew?: boolean;
   requiredRoles?: string[];
-  shortcut?: string;
   description?: string;
 }
 
-// Types pour les notifications
-interface Notification {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  title: string;
-  message: string;
-  timestamp: Date;
-  isRead: boolean;
-  actionUrl?: string;
-  actionLabel?: string;
-  patientId?: string;
-  taskId?: string;
-}
-
-// Types pour les préférences utilisateur
-interface UserPreferences {
-  theme: 'light' | 'dark' | 'auto';
-  compactMode: boolean;
-  showNotifications: boolean;
-  autoSave: boolean;
-  soundEnabled: boolean;
-}
-
-// Props de la NavBar
+// Props de la NavBar (simplifiées)
 interface NavBarProps {
   // État d'authentification
   logged: boolean;
@@ -96,36 +61,19 @@ interface NavBarProps {
   currentPath?: string;
   onNavigate?: (path: string) => void;
   
-  // Recherche
+  // Recherche (optionnelle)
   searchEnabled?: boolean;
   onSearch?: (query: string) => void;
   searchPlaceholder?: string;
   
-  // Notifications
-  notifications?: Notification[];
-  unreadCount?: number;
-  onNotificationRead?: (notificationId: string) => void;
-  onNotificationClear?: () => void;
-  
-  // Préférences
-  userPreferences?: UserPreferences;
-  onPreferencesChange?: (preferences: Partial<UserPreferences>) => void;
-  
   // Personnalisation
-  showBreadcrumbs?: boolean;
-  showQuickActions?: boolean;
-  showUserStats?: boolean;
-  compactMode?: boolean;
   variant?: 'default' | 'minimal' | 'professional';
   
-  // Actions personnalisées
-  customActions?: React.ReactNode;
-  
   // Callbacks
-  onThemeChange?: (theme: string) => void;
   onProfileClick?: () => void;
   onSettingsClick?: () => void;
   onHelpClick?: () => void;
+  onLogout?: () => void;
 }
 
 // Mock pour React Router (à remplacer par les vrais)
@@ -137,7 +85,7 @@ const Link = ({ to, children, className, onClick, ...props }: any) => (
 
 const useNavigate = () => (path: string) => console.log("Navigate to:", path);
 
-// Items de navigation par rôle
+// Items de navigation simplifiés (SANS Stats ni Admin)
 const getNavItemsByRole = (userRole?: string): NavItem[] => {
   const baseItems: NavItem[] = [
     {
@@ -145,123 +93,79 @@ const getNavItemsByRole = (userRole?: string): NavItem[] => {
       to: '/',
       label: 'Accueil',
       icon: Home,
-      description: 'Tableau de bord principal',
-      shortcut: 'H'
+      description: 'Tableau de bord principal'
     },
     {
       id: 'calendar',
       to: '/calendar',
       label: 'Planning',
       icon: Calendar,
-      description: 'Gestion des interventions ICNP',
-      shortcut: 'P'
+      description: 'Gestion des interventions'
     }
   ];
 
- 
+  // Ajout d'éléments spécifiques selon le rôle (mais SANS admin ni stats)
+  if (userRole === 'doctor' || userRole === 'nurse') {
+    baseItems.push({
+      id: 'patients',
+      to: '/patients',
+      label: 'Patients',
+      icon: Users,
+      description: 'Gestion des patients'
+    });
+  }
 
-  if (userRole === 'admin') {
-    baseItems.push(
-      {
-        id: 'analytics',
-        to: '/analytics',
-        label: 'Statistiques',
-        icon: BarChart3,
-        description: 'Analyses et rapports',
-        shortcut: 'S'
-      },
-      {
-        id: 'admin',
-        to: '/admin',
-        label: 'Administration',
-        icon: Shield,
-        description: 'Gestion du système',
-        requiredRoles: ['admin']
-      }
-    );
+  if (userRole === 'doctor') {
+    baseItems.push({
+      id: 'create',
+      to: '/create',
+      label: 'Nouveau Patient',
+      icon: UserPlus,
+      description: 'Ajouter un patient'
+    });
   }
 
   return baseItems;
 };
 
-// Notifications mockées
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'info',
-    title: 'Nouvelle intervention ICNP',
-    message: 'Une nouvelle intervention a été ajoutée au référentiel',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000),
-    isRead: false,
-    actionUrl: '/interventions',
-    actionLabel: 'Voir'
-  },
-  {
-    id: '2',
-    type: 'warning',
-    title: 'Patient en attente',
-    message: 'Le patient Martin Dubois attend sa prise en charge',
-    timestamp: new Date(Date.now() - 15 * 60 * 1000),
-    isRead: false,
-    patientId: 'p123',
-    actionUrl: '/patients/p123',
-    actionLabel: 'Voir le patient'
-  },
-  {
-    id: '3',
-    type: 'success',
-    title: 'Action terminée',
-    message: 'Toilette corporelle réalisée pour Mme Dupont',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000),
-    isRead: true,
-    taskId: 't456'
-  }
-];
-
-const NavBar: React.FC<NavBarProps> = memo(({ 
+// Composant principal NavBar nettoyé
+const NavBar: React.FC<NavBarProps> = memo(({
   logged,
   currentUser,
   setLogged,
   setCurrentUser,
   currentPath = '/',
   onNavigate,
-  searchEnabled = true,
+  searchEnabled = false,
   onSearch,
-  searchPlaceholder = 'Rechercher patients, interventions...',
-  notifications = mockNotifications,
-  unreadCount = 0,
-  onNotificationRead,
-  onNotificationClear,
-  userPreferences,
-  onPreferencesChange,
-  showBreadcrumbs = false,
-  showQuickActions = true,
-  showUserStats = true,
-  compactMode = false,
+  searchPlaceholder = "Rechercher...",
   variant = 'default',
-  customActions,
-  onThemeChange,
   onProfileClick,
   onSettingsClick,
-  onHelpClick
+  onHelpClick,
+  onLogout
 }) => {
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  
+  const navigate = useNavigate();
 
+  // Items de navigation basés sur le rôle utilisateur
   const navItems = getNavItemsByRole(currentUser?.role);
-  const actualUnreadCount = notifications.filter(n => !n.isRead).length;
 
   // Gestion de la déconnexion
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('token');
-    setLogged(false);
-    setCurrentUser(null);
-    navigate('/login');
-  }, [setLogged, setCurrentUser, navigate]);
+    if (onLogout) {
+      onLogout();
+    } else {
+      // Logique par défaut
+      localStorage.removeItem('token');
+      localStorage.removeItem('currentUser');
+      setLogged(false);
+      setCurrentUser(null);
+      navigate('/login');
+    }
+  }, [onLogout, setLogged, setCurrentUser, navigate]);
 
   // Gestion de la recherche
   const handleSearch = useCallback((query: string) => {
@@ -269,49 +173,7 @@ const NavBar: React.FC<NavBarProps> = memo(({
     onSearch?.(query);
   }, [onSearch]);
 
-  // Gestion des notifications
-  const handleNotificationClick = useCallback((notification: Notification) => {
-    if (!notification.isRead) {
-      onNotificationRead?.(notification.id);
-    }
-    if (notification.actionUrl) {
-      navigate(notification.actionUrl);
-    }
-    setIsNotificationsOpen(false);
-  }, [onNotificationRead, navigate]);
-
-  // Formatage du temps relatif
-  const formatRelativeTime = useCallback((date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (minutes < 1) return 'À l\'instant';
-    if (minutes < 60) return `Il y a ${minutes} min`;
-    if (hours < 24) return `Il y a ${hours}h`;
-    return `Il y a ${days}j`;
-  }, []);
-
-  // Icône de notification selon le type
-  const getNotificationIcon = (type: Notification['type']) => {
-    switch (type) {
-      case 'success': return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'warning': return <AlertCircle className="w-4 h-4 text-orange-600" />;
-      case 'error': return <AlertCircle className="w-4 h-4 text-red-600" />;
-      default: return <Bell className="w-4 h-4 text-blue-600" />;
-    }
-  };
-
-  // Stats utilisateur
-  const userStats = {
-    tasksToday: 10,
-    completed: 5,
-    patients: 0
-  };
-
-  // Navigation mobile fermée sur changement de route
+  // Fermer le menu mobile lors du changement de route
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [currentPath]);
@@ -410,137 +272,49 @@ const NavBar: React.FC<NavBarProps> = memo(({
             
             {logged && currentUser ? (
               <>
-                {/* Notifications */}
-                <Popover open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="sm" className="relative">
-                      <Bell className="w-5 h-5" />
-                      {actualUnreadCount > 0 && (
-                        <Badge 
-                          variant="destructive" 
-                          className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs"
-                        >
-                          {actualUnreadCount > 9 ? '9+' : actualUnreadCount}
-                        </Badge>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-0" align="end">
-                    <div className="p-4 border-b border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">Notifications</h4>
-                        {actualUnreadCount > 0 && (
-                          <Button variant="ghost" size="sm" onClick={onNotificationClear}>
-                            Tout marquer lu
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="max-h-80 overflow-auto">
-                      {notifications.length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">
-                          <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p>Aucune notification</p>
-                        </div>
-                      ) : (
-                        notifications.map((notification) => (
-                          <button
-                            key={notification.id}
-                            onClick={() => handleNotificationClick(notification)}
-                            className={`w-full p-4 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
-                              !notification.isRead ? 'bg-blue-50/50' : ''
-                            }`}
-                          >
-                            <div className="flex items-start gap-3">
-                              {getNotificationIcon(notification.type)}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between">
-                                  <p className="font-medium text-sm text-gray-900 truncate">
-                                    {notification.title}
-                                  </p>
-                                  {!notification.isRead && (
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                                <div className="flex items-center justify-between mt-2">
-                                  <span className="text-xs text-gray-500">
-                                    {formatRelativeTime(notification.timestamp)}
-                                  </span>
-                                  {notification.actionLabel && (
-                                    <span className="text-xs text-blue-600">
-                                      {notification.actionLabel}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                {/* Recherche desktop (si activée) */}
+                {searchEnabled && (
+                  <div className="hidden md:flex relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder={searchPlaceholder}
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      className="pl-9 w-64 bg-white/50"
+                    />
+                  </div>
+                )}
 
-                {/* Profil utilisateur */}
+                {/* Menu utilisateur simplifié */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center gap-2 px-3 py-2">
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage src={currentUser.avatar} />
-                        <AvatarFallback className="bg-blue-500 text-white">
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage 
+                          src={`https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.email}`} 
+                          alt={currentUser.email} 
+                        />
+                        <AvatarFallback>
                           {currentUser.email.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="hidden sm:block text-left">
-                        <p className="text-sm font-medium text-gray-900">
-                          {currentUser.firstName || currentUser.email.split('@')[0]}
-                        </p>
-                        <p className="text-xs text-gray-500">{currentUser.role}</p>
-                      </div>
-                      <ChevronDown className="w-4 h-4 text-gray-500" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuLabel>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage src={currentUser.avatar} />
-                          <AvatarFallback className="bg-blue-500 text-white">
-                            {currentUser.email.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">
-                            {currentUser.firstName || currentUser.email.split('@')[0]}
-                          </p>
-                          <p className="text-sm text-gray-500">{currentUser.email}</p>
-                          <Badge variant="outline" className="mt-1">{currentUser.role}</Badge>
-                        </div>
+                  <DropdownMenuContent className="w-64" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {currentUser.firstName && currentUser.lastName 
+                            ? `${currentUser.firstName} ${currentUser.lastName}`
+                            : currentUser.email
+                          }
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {currentUser.email}
+                        </p>
                       </div>
                     </DropdownMenuLabel>
-                    
-                    {showUserStats && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <div className="px-2 py-3">
-                          <p className="text-sm font-medium mb-2">Aujourd'hui</p>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="text-center p-2 bg-blue-50 rounded">
-                              <p className="font-semibold text-blue-600">{userStats.tasksToday}</p>
-                              <p className="text-gray-600">Tâches</p>
-                            </div>
-                            <div className="text-center p-2 bg-green-50 rounded">
-                              <p className="font-semibold text-green-600">{userStats.completed}</p>
-                              <p className="text-gray-600">Terminées</p>
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    )}
                     
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
@@ -566,7 +340,7 @@ const NavBar: React.FC<NavBarProps> = memo(({
                       </DropdownMenuItem>
                       <DropdownMenuItem>
                         <FileText className="w-4 h-4 mr-2" />
-                        Documentation ICNP
+                        Documentation
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
                     
@@ -579,7 +353,7 @@ const NavBar: React.FC<NavBarProps> = memo(({
                 </DropdownMenu>
               </>
             ) : (
-              /* Boutons non connecté */
+              /* Bouton connexion pour utilisateurs non connectés */
               <Link
                 to="/login"
                 className="group inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
@@ -588,9 +362,6 @@ const NavBar: React.FC<NavBarProps> = memo(({
                 <span className="hidden sm:inline">Connexion</span>
               </Link>
             )}
-
-            {/* Actions personnalisées */}
-            {customActions}
 
             {/* Menu mobile */}
             <Button

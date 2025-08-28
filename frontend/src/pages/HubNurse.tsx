@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   Search, 
   Users, 
@@ -32,6 +32,8 @@ import SearchBar from "../components/SearchBar";
 import { Patient2 } from "../types/patient2";
 
 const HubNurse: React.FC = () => {
+  const navigate = useNavigate(); // Ajout du hook de navigation
+
   // États
   const [patientList, setPatientList] = useState<Patient2[] | null>(null);
   const [isPending, setIsPending] = useState(true);
@@ -43,7 +45,7 @@ const HubNurse: React.FC = () => {
   const [exportMessage, setExportMessage] = useState("");
   const [showImportForm, setShowImportForm] = useState(false);
 
-  // Fonction pour calculer l'âge (définie en premier)
+  // Fonction pour calculer l'âge
   const calculateAge = useCallback((dateNaissance: string): number => {
     if (!dateNaissance) return 0;
     const birth = new Date(dateNaissance);
@@ -88,386 +90,243 @@ const HubNurse: React.FC = () => {
   }, [fetchPatients]);
 
   // Filtrage et tri des patients
-  const filteredPatients = (patientList ?? []).filter((patient) => {
-    const nom = patient.nom?.toLowerCase() || "";
-    const prenom = patient.prenom?.toLowerCase() || "";
-    const age = calculateAge(patient.dateNaissance).toString();
-    const search = searchTerm.toLowerCase();
-    
-    return nom.includes(search) || 
-           prenom.includes(search) || 
-           age.includes(search) ||
-           patient.situationDossier?.toLowerCase().includes(search);
+  const filteredPatients = (patientList ?? []).filter((patient: Patient2) => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      patient.nom?.toLowerCase().includes(searchLower) ||
+      patient.prenom?.toLowerCase().includes(searchLower) ||
+      patient.ipp?.toLowerCase().includes(searchLower) ||
+      patient.situationDossier?.toLowerCase().includes(searchLower)
+    );
   });
 
   const sortedPatients = [...filteredPatients].sort((a, b) => {
-    if (sortMethod === "alphabetical") {
-      const aName = `${a.nom || ""} ${a.prenom || ""}`.toLowerCase();
-      const bName = `${b.nom || ""} ${b.prenom || ""}`.toLowerCase();
-      return aName.localeCompare(bName);
+    switch (sortMethod) {
+      case 'alphabetical':
+        return `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`);
+      case 'age':
+        return calculateAge(b.dateNaissance) - calculateAge(a.dateNaissance);
+      case 'recent':
+        return new Date(b.dateDebutPriseEnCharge || 0).getTime() - new Date(a.dateDebutPriseEnCharge || 0).getTime();
+      default:
+        return 0;
     }
-    if (sortMethod === "date") {
-      const aDate = new Date(a.dateDebutPriseEnCharge || "").getTime();
-      const bDate = new Date(b.dateDebutPriseEnCharge || "").getTime();
-      return bDate - aDate; // Plus récent en premier
-    }
-    return 0;
   });
 
-  // Gestion de l'import de fichier
-  const handleFileImport = async () => {
-    const fileInput = document.getElementById("fileInput") as HTMLInputElement;
-    const file = fileInput?.files?.[0];
+  // FONCTIONS DE NAVIGATION POUR Patient2List
+  const handleViewPatient = useCallback((patientId: string) => {
+    console.log('Navigation vers patient:', patientId);
+    navigate(`/patient2/${patientId}`);
+  }, [navigate]);
+
+  const handleEditPatient = useCallback((patient: Patient2) => {
+    console.log('Modification patient:', patient._id);
+    // Navigation vers une page d'édition ou modal
+    navigate(`/patient2/${patient._id}/edit`);
+  }, [navigate]);
+
+  const handleExportPatient = useCallback((patient: Patient2) => {
+    console.log('Export patient:', patient._id);
+    // Logique d'export (PDF, Excel, etc.)
+  }, []);
+
+  const handleDeletePatient = useCallback(async (patientId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce patient ?')) return;
     
-    if (!file) {
-      alert("Sélectionnez un fichier .xlsx");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      setImportMessage("Import en cours...");
-
-      const response = await fetch("/api/patient2/import", {
-        method: "POST",
+      const response = await fetch(`/api/patient2/${patientId}`, {
+        method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-        },
-        body: formData,
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`
+        }
       });
 
-      if (!response.ok) {
-        throw new Error("Erreur lors de l'importation");
+      if (response.ok) {
+        // Recharger la liste
+        await fetchPatients();
+      } else {
+        throw new Error('Erreur lors de la suppression');
       }
-
-      setImportMessage("Import terminé avec succès !");
-      
-      // Recharger les patients après import
-      setTimeout(() => {
-        fetchPatients();
-        setImportMessage("");
-        if (fileInput) fileInput.value = ""; // Reset du input
-      }, 2000);
-
     } catch (err: any) {
-      console.error('Erreur import:', err);
-      setImportMessage("Erreur lors de l'importation.");
-      setTimeout(() => setImportMessage(""), 3000);
+      console.error('Erreur suppression:', err);
+      setError(err.message);
     }
-  };
+  }, [fetchPatients]);
 
-  // Gestion de l'export PDF
-  const handleExportClick = async () => {
+  // Export global
+  const handleExportAll = async () => {
+    if (!patientList || patientList.length === 0) return;
+
+    setIsExporting(true);
+    setExportMessage("");
+
     try {
-      setIsExporting(true);
-      setExportMessage("");
-      
-      if (!sortedPatients || sortedPatients.length === 0) {
-        setExportMessage("Aucun patient à exporter");
-        return;
-      }
-      
-      await exportPatientsToPDF(sortedPatients);
-      setExportMessage("Export PDF généré avec succès !");
-      
-    } catch (error: any) {
-      console.error('Erreur export:', error);
-      setExportMessage("Erreur lors de l'export. Veuillez réessayer.");
+      await exportPatientsToPDF(patientList);
+      setExportMessage("Export réussi !");
+    } catch (error) {
+      console.error("Erreur lors de l'export:", error);
+      setExportMessage("Erreur lors de l'export");
     } finally {
       setIsExporting(false);
       setTimeout(() => setExportMessage(""), 3000);
     }
   };
 
-  // Calculs des statistiques
-  const calculatePatientStats = () => {
-    if (!patientList || patientList.length === 0) {
-      return { total: 0, newThisMonth: 0, activeFollowUps: 0, percentageIncrease: 0 };
-    }
-
-    const total = patientList.length;
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    const newThisMonth = patientList.filter(patient => {
-      if (!patient.dateDebutPriseEnCharge) return false;
-      const date = new Date(patient.dateDebutPriseEnCharge);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-    }).length;
-    
-    const activeFollowUps = patientList.filter(patient => 
-      patient.situationDossier?.toLowerCase().includes("en cours") || 
-      patient.situationDossier?.toLowerCase().includes("actif")
-    ).length;
-
-    const previousMonthPatients = total - newThisMonth;
-    const percentageIncrease = previousMonthPatients > 0 
-      ? Math.round((newThisMonth / previousMonthPatients) * 100) 
-      : 0;
-
-    return { total, newThisMonth, activeFollowUps, percentageIncrease };
+  // Statistiques rapides
+  const stats = {
+    total: patientList?.length || 0,
+    active: patientList?.filter(p => 
+      p.situationDossier?.toLowerCase().includes('actif') || 
+      p.situationDossier?.toLowerCase().includes('en cours')
+    ).length || 0,
+    completed: patientList?.filter(p => 
+      p.situationDossier?.toLowerCase().includes('terminé') || 
+      p.situationDossier?.toLowerCase().includes('fermé')
+    ).length || 0
   };
 
-  const stats = calculatePatientStats();
+  if (isPending) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-blue-600">Chargement des patients...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         
-        {/* Header */}
-        <div className="text-center space-y-4">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-r from-purple-500 to-blue-600 rounded-2xl shadow-lg">
-              <Shield className="w-8 h-8 text-white" />
+        {/* En-tête */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl">
+                  <Heart className="w-8 h-8 text-white" />
+                </div>
+                Hub Personnel Soignant
+              </h1>
+              <p className="text-gray-600 mt-2">
+                Gestion des patients et suivi des interventions ICNP
+              </p>
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              Tableau de bord Personnel Soignant
-            </h1>
-          </div>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Gestion des patients, suivi des soins et administration des dossiers médicaux
-          </p>
-        </div>
 
-        {/* Statistiques principales */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200/50 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-600 font-semibold text-sm uppercase tracking-wide">
-                    Total Patients
-                  </p>
-                  <p className="text-3xl font-bold text-blue-900 mt-1">
-                    {stats.total}
-                  </p>
-                </div>
-                <div className="p-3 bg-blue-500 rounded-xl">
-                  <Users className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200/50 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-600 font-semibold text-sm uppercase tracking-wide">
-                    Nouveaux ce mois
-                  </p>
-                  <p className="text-3xl font-bold text-green-900 mt-1">
-                    {stats.newThisMonth}
-                  </p>
-                </div>
-                <div className="p-3 bg-green-500 rounded-xl">
-                  <TrendingUp className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200/50 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-orange-600 font-semibold text-sm uppercase tracking-wide">
-                    Suivis actifs
-                  </p>
-                  <p className="text-3xl font-bold text-orange-900 mt-1">
-                    {stats.activeFollowUps}
-                  </p>
-                </div>
-                <div className="p-3 bg-orange-500 rounded-xl">
-                  <Activity className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200/50 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-purple-600 font-semibold text-sm uppercase tracking-wide">
-                    Évolution
-                  </p>
-                  <p className="text-3xl font-bold text-purple-900 mt-1">
-                    +{stats.percentageIncrease}%
-                  </p>
-                </div>
-                <div className="p-3 bg-purple-500 rounded-xl">
-                  <BarChart3 className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Actions principales */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Section Recherche et Filtres */}
-          <Card className="bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="w-5 h-5 text-blue-600" />
-                Recherche et Filtres
-              </CardTitle>
-              <CardDescription>
-                Trouvez rapidement un patient ou filtrez la liste
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <SearchBar 
-                searchTerm={searchTerm} 
-                setSearchTerm={setSearchTerm}
-                placeholder="Rechercher par nom, prénom, âge ou situation..."
-              />
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={fetchPatients}
+                variant="outline"
+                disabled={isPending}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isPending ? 'animate-spin' : ''}`} />
+                Actualiser
+              </Button>
               
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant={sortMethod === "alphabetical" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSortMethod("alphabetical")}
-                  className="text-sm"
-                >
-                  <Filter className="w-4 h-4 mr-1" />
-                  Alphabétique
+              <Link to="/calendar">
+                <Button className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700">
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Planning
                 </Button>
-                <Button
-                  variant={sortMethod === "date" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSortMethod("date")}
-                  className="text-sm"
-                >
-                  <Calendar className="w-4 h-4 mr-1" />
-                  Par date
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchPatients}
-                  disabled={isPending}
-                  className="text-sm"
-                >
-                  <RefreshCw className={`w-4 h-4 mr-1 ${isPending ? 'animate-spin' : ''}`} />
-                  Actualiser
-                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Statistiques rapides */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="bg-white/70 backdrop-blur-xl border border-white/20">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Patients</p>
+                  <p className="text-3xl font-bold text-blue-600">{stats.total}</p>
+                </div>
+                <Users className="w-8 h-8 text-blue-500" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Section Export/Import */}
-          <Card className="bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-green-600" />
-                Gestion des données
-              </CardTitle>
-              <CardDescription>
-                Importez ou exportez les données patients
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-3">
+          <Card className="bg-white/70 backdrop-blur-xl border border-white/20">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Dossiers Actifs</p>
+                  <p className="text-3xl font-bold text-green-600">{stats.active}</p>
+                </div>
+                <Activity className="w-8 h-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/70 backdrop-blur-xl border border-white/20">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Terminés</p>
+                  <p className="text-3xl font-bold text-purple-600">{stats.completed}</p>
+                </div>
+                <CheckCircle className="w-8 h-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Barre de recherche et filtres */}
+        <Card className="bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg mb-6">
+          <CardContent className="p-6">
+            <div className="flex flex-col lg:flex-row gap-4 items-center">
+              <div className="flex-1">
+                <SearchBar
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  placeholder="Rechercher par nom, prénom, IPP..."
+                  className="w-full"
+                />
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <select
+                  value={sortMethod}
+                  onChange={(e) => setSortMethod(e.target.value)}
+                  className="px-4 py-2 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="alphabetical">Ordre alphabétique</option>
+                  <option value="age">Par âge</option>
+                  <option value="recent">Plus récents</option>
+                </select>
+
                 <Button
-                  onClick={handleExportClick}
-                  disabled={isExporting || !sortedPatients.length}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                  onClick={handleExportAll}
+                  disabled={isExporting || !patientList?.length}
+                  variant="outline"
                 >
                   {isExporting ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Download className="w-4 h-4 mr-2" />
                   )}
-                  Exporter PDF
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={() => setShowImportForm(!showImportForm)}
-                  className="border-blue-200 hover:bg-blue-50"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Importer Excel
+                  Exporter
                 </Button>
               </div>
+            </div>
 
-              {exportMessage && (
-                <Alert className="bg-green-50 border-green-200">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
-                    {exportMessage}
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            {exportMessage && (
+              <Alert className={`mt-4 ${exportMessage.includes('Erreur') ? 'border-red-200' : 'border-green-200'}`}>
+                <AlertDescription>{exportMessage}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Formulaire d'import (conditionnel) */}
-        {showImportForm && (
-          <Card className="bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-5 h-5 text-blue-600" />
-                Import de fichier Excel
-              </CardTitle>
-              <CardDescription>
-                Sélectionnez un fichier .xlsx contenant les données patients
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <input
-                    id="fileInput"
-                    type="file"
-                    accept=".xlsx,.xls"
-                    className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
-                  />
-                </div>
-                
-                <Button
-                  onClick={handleFileImport}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Lancer l'import
-                </Button>
-              </div>
-              
-              {importMessage && (
-                <Alert className="mt-4 bg-green-50 border-green-200">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
-                    {importMessage}
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Messages d'état */}
+        {/* Messages d'erreur */}
         {error && (
-          <Alert className="bg-red-50 border-red-200">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-800">
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isPending && (
-          <Alert className="bg-blue-50 border-blue-200">
-            <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
-            <AlertDescription className="text-blue-800">
-              Chargement des patients...
-            </AlertDescription>
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
@@ -500,12 +359,16 @@ const HubNurse: React.FC = () => {
               <Patient2List 
                 patients={sortedPatients} 
                 title="Liste des patients"
-                showStats={true}
-                showSearch={false} // On a déjà la recherche en haut
+                showStats={false} // On a déjà les stats au-dessus
+                showSearch={false} // On a déjà la recherche au-dessus
                 allowActions={true}
                 viewMode="grid"
                 emptyStateTitle="Aucun patient trouvé"
                 emptyStateDescription="Aucun patient ne correspond à vos critères de recherche"
+                onView={handleViewPatient}
+                onEdit={handleEditPatient}
+                onExport={handleExportPatient}
+                handleDelete={handleDeletePatient}
               />
             </CardContent>
           </Card>
